@@ -5,3 +5,10 @@ version = 4
 [[package]]
 name = "regex-engine"
 version = "0.1.0"
+
+[[package]]
+name = "search"
+version = "0.1.0"
+dependencies = [
+ "regex-engine",
+]
