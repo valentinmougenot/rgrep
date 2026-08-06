@@ -47,3 +47,67 @@ impl<'r, R: BufRead> Iterator for Matches<'r, R> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use regex_engine::Regex;
+
+    #[test]
+    fn returns_no_matches_for_empty_input() {
+        let re = Regex::new("ab").unwrap();
+        let matches: Vec<LineMatch> = search(&re, "".as_bytes()).collect();
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn returns_no_matches_when_pattern_is_absent() {
+        let re = Regex::new("ab").unwrap();
+        let matches: Vec<LineMatch> = search(&re, "xxx\nyyy\nzzz".as_bytes()).collect();
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn line_numbers_are_one_indexed() {
+        let re = Regex::new("ab").unwrap();
+        let matches: Vec<LineMatch> = search(&re, "ab".as_bytes()).collect();
+        assert_eq!(matches[0].line_number, 1);
+    }
+
+    #[test]
+    fn finds_matches_on_multiple_lines() {
+        let re = Regex::new("ab").unwrap();
+        let input = "xx\nab\nxxabxx\nno match\nab";
+        let matches: Vec<LineMatch> = search(&re, input.as_bytes()).collect();
+
+        assert_eq!(matches.len(), 3);
+        assert_eq!(matches[0].line_number, 2);
+        assert_eq!(matches[1].line_number, 3);
+        assert_eq!(matches[2].line_number, 5);
+    }
+
+    #[test]
+    fn reports_the_start_and_end_of_the_match_within_the_line() {
+        let re = Regex::new("ab").unwrap();
+        let matches: Vec<LineMatch> = search(&re, "xxabxx".as_bytes()).collect();
+
+        assert_eq!(matches[0].start, 2);
+        assert_eq!(matches[0].end, 4);
+    }
+
+    #[test]
+    fn line_includes_the_trailing_newline_except_on_the_last_line() {
+        let re = Regex::new("ab").unwrap();
+        let matches: Vec<LineMatch> = search(&re, "ab\nab".as_bytes()).collect();
+
+        assert_eq!(matches[0].line, "ab\n");
+        assert_eq!(matches[1].line, "ab");
+    }
+
+    #[test]
+    fn works_with_a_single_line_and_no_trailing_newline() {
+        let re = Regex::new("ab").unwrap();
+        let matches: Vec<LineMatch> = search(&re, "xxabxx".as_bytes()).collect();
+        assert_eq!(matches.len(), 1);
+    }
+}
