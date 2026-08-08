@@ -106,6 +106,7 @@ impl App {
             &mut matches,
             Some(path),
             header,
+            &mut io::stdout(),
         );
 
         Ok(())
@@ -117,7 +118,14 @@ impl App {
 
         let matches = &mut search(&self.regex, reader).peekable();
 
-        report(self.output_mode, &self.colorizer, matches, None, None);
+        report(
+            self.output_mode,
+            &self.colorizer,
+            matches,
+            None,
+            None,
+            &mut io::stdout(),
+        );
     }
 
     fn should_skip_path(&self, path: &Path, is_dir: bool) -> bool {
