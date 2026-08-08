@@ -5,7 +5,7 @@ use std::{
     path::Path,
 };
 
-use regex_engine::Regex;
+use regex_engine::{Regex, RegexBuilder};
 use search::search;
 
 use crate::{
@@ -26,7 +26,9 @@ pub struct App {
 impl App {
     pub fn new() -> AppResult<Self> {
         let args = parse(&mut std::env::args().skip(1))?;
-        let regex = Regex::new(&args.pattern)?;
+        let regex = RegexBuilder::new(args.pattern.clone())
+            .case_insensitive(args.case_insensitive)
+            .build()?;
 
         let mut root = None;
         let gitignore = if let Some(ref path) = args.path

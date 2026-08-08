@@ -7,6 +7,7 @@ pub struct Args {
     pub pattern: String,
     pub path: Option<PathBuf>,
     pub output_mode: OutputMode,
+    pub case_insensitive: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,12 +33,14 @@ impl Display for ArgsError {
 pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError> {
     let mut positionals = Vec::new();
     let mut output_mode = OutputMode::Matches;
+    let mut case_insensitive = false;
 
     for arg in args {
         if let Some(long) = arg.strip_prefix("--") {
             match long {
                 "count" => output_mode = OutputMode::Count,
                 "files-with-matches" => output_mode = OutputMode::Files,
+                "ignore-case" => case_insensitive = true,
                 _ => {
                     return Err(ArgsError {
                         kind: ArgsErrorKind::UnexpectedArgument(arg),
@@ -49,6 +52,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                 match c {
                     'c' => output_mode = OutputMode::Count,
                     'l' => output_mode = OutputMode::Files,
+                    'i' => case_insensitive = true,
                     _ => {
                         return Err(ArgsError {
                             kind: ArgsErrorKind::UnexpectedArgument(arg.clone()),
@@ -78,6 +82,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
         pattern,
         path,
         output_mode,
+        case_insensitive,
     })
 }
 
