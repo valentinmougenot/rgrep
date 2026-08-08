@@ -34,15 +34,30 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
     let mut output_mode = OutputMode::Matches;
 
     for arg in args {
-        match arg.as_str() {
-            "-c" | "--count" => output_mode = OutputMode::Count,
-            "-l" | "--files-with-matches" => output_mode = OutputMode::Files,
-            _ if arg.starts_with("-") => {
-                return Err(ArgsError {
-                    kind: ArgsErrorKind::UnexpectedArgument(arg),
-                });
+        if let Some(long) = arg.strip_prefix("--") {
+            match long {
+                "count" => output_mode = OutputMode::Count,
+                "files-with-matches" => output_mode = OutputMode::Files,
+                _ => {
+                    return Err(ArgsError {
+                        kind: ArgsErrorKind::UnexpectedArgument(arg),
+                    });
+                }
             }
-            _ => positionals.push(arg),
+        } else if let Some(short) = arg.strip_prefix('-') {
+            for c in short.chars() {
+                match c {
+                    'c' => output_mode = OutputMode::Count,
+                    'l' => output_mode = OutputMode::Files,
+                    _ => {
+                        return Err(ArgsError {
+                            kind: ArgsErrorKind::UnexpectedArgument(arg.clone()),
+                        });
+                    }
+                }
+            }
+        } else {
+            positionals.push(arg);
         }
     }
 
