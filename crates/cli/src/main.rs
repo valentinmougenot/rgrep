@@ -1,4 +1,5 @@
 use std::{
+    ffi::OsStr,
     fs::File,
     io::{self, BufReader},
     path::Path,
@@ -7,10 +8,11 @@ use std::{
 use regex_engine::Regex;
 use search::search;
 
-use crate::{args::parse, error::AppError, walk::walk};
+use crate::{args::parse, error::AppError, gitignore::Gitignore, walk::walk};
 
 mod args;
 mod error;
+mod gitignore;
 mod walk;
 
 fn run() -> Result<bool, AppError> {
@@ -19,11 +21,26 @@ fn run() -> Result<bool, AppError> {
     let regex = Regex::new(&args.pattern)?;
 
     let had_error = match args.path {
-        Some(path) if path.is_dir() => {
+        Some(root) if root.is_dir() => {
+            let contents = match std::fs::read_to_string(root.join(".gitignore")) {
+                Ok(contents) => contents,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => String::new(),
+                Err(e) => return Err(e.into()),
+            };
+            let gitignore = Gitignore::parse(&contents);
+            let should_skip = |path: &Path, is_dir: bool| {
+                if is_dir && path.file_name() == Some(OsStr::new(".git")) {
+                    return true;
+                }
+
+                let relative = path.strip_prefix(&root).unwrap_or(path);
+                gitignore.is_ignored(relative, is_dir)
+            };
+
             let mut separator_needed = false;
             let mut had_error = false;
 
-            for entry in walk(&path) {
+            for entry in walk(&root, should_skip) {
                 let result = entry.map_err(AppError::from).and_then(|file_path| {
                     search_file(&regex, &file_path, Some(&mut separator_needed))
                 });

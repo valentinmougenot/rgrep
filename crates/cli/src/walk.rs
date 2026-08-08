@@ -4,19 +4,24 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub fn walk(root: &Path) -> impl Iterator<Item = io::Result<PathBuf>> {
+pub fn walk(
+    root: &Path,
+    should_skip: impl Fn(&Path, bool) -> bool,
+) -> impl Iterator<Item = io::Result<PathBuf>> {
     Files {
         root: Some(root.to_path_buf()),
         stack: Vec::new(),
+        should_skip,
     }
 }
 
-struct Files {
+struct Files<F: Fn(&Path, bool) -> bool> {
     root: Option<PathBuf>,
     stack: Vec<ReadDir>,
+    should_skip: F,
 }
 
-impl Iterator for Files {
+impl<F: Fn(&Path, bool) -> bool> Iterator for Files<F> {
     type Item = io::Result<PathBuf>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -31,11 +36,13 @@ impl Iterator for Files {
             let current = self.stack.last_mut()?;
             match current.next() {
                 Some(Ok(entry)) => match entry.metadata() {
-                    Ok(m) if m.is_dir() => match std::fs::read_dir(entry.path()) {
-                        Ok(value) => self.stack.push(value),
-                        Err(e) => return Some(Err(e)),
-                    },
-                    Ok(m) if m.is_file() => {
+                    Ok(m) if m.is_dir() && !(self.should_skip)(&entry.path(), true) => {
+                        match std::fs::read_dir(entry.path()) {
+                            Ok(value) => self.stack.push(value),
+                            Err(e) => return Some(Err(e)),
+                        }
+                    }
+                    Ok(m) if m.is_file() && !(self.should_skip)(&entry.path(), false) => {
                         return Some(Ok(entry.path()));
                     }
                     Ok(_) => {}
@@ -59,7 +66,8 @@ mod tests {
 
     impl TempDir {
         fn new(name: &str) -> Self {
-            let path = std::env::temp_dir().join(format!("rgrep_walk_test_{name}_{}", std::process::id()));
+            let path =
+                std::env::temp_dir().join(format!("rgrep_walk_test_{name}_{}", std::process::id()));
             let _ = fs::remove_dir_all(&path);
             fs::create_dir_all(&path).unwrap();
             Self(path)
@@ -77,7 +85,7 @@ mod tests {
     }
 
     fn file_names(root: &Path) -> Vec<String> {
-        let mut names: Vec<String> = walk(root)
+        let mut names: Vec<String> = walk(root, |_, _| false)
             .map(|entry| {
                 entry
                     .unwrap()
@@ -135,7 +143,7 @@ mod tests {
         let file = dir.path().join("file.txt");
         fs::write(&file, "").unwrap();
 
-        let results: Vec<_> = walk(&file).collect();
+        let results: Vec<_> = walk(&file, |_, _| false).collect();
         assert_eq!(results.len(), 1);
         assert!(results[0].is_err());
     }
@@ -145,7 +153,7 @@ mod tests {
         let dir = TempDir::new("missing");
         let missing = dir.path().join("does_not_exist");
 
-        let results: Vec<_> = walk(&missing).collect();
+        let results: Vec<_> = walk(&missing, |_, _| false).collect();
         assert_eq!(results.len(), 1);
         assert!(results[0].is_err());
     }
