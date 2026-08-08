@@ -99,3 +99,63 @@ fn glob_match(pattern: &[u8], text: &[u8]) -> bool {
         None => text.is_empty(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn skips_blank_lines_and_comments() {
+        let gi = Gitignore::parse("\n# comment\n\ntarget\n");
+        assert_eq!(gi.patterns.len(), 1);
+        assert_eq!(gi.patterns[0].glob, "target");
+    }
+
+    #[test]
+    fn basename_pattern_matches_at_any_depth() {
+        let gi = Gitignore::parse("*.log");
+        assert!(gi.is_ignored(Path::new("a.log"), false));
+        assert!(gi.is_ignored(Path::new("sub/a.log"), false));
+        assert!(!gi.is_ignored(Path::new("a.txt"), false));
+    }
+
+    #[test]
+    fn leading_slash_anchors_to_root_only() {
+        let gi = Gitignore::parse("/build");
+        assert!(gi.is_ignored(Path::new("build"), true));
+        assert!(!gi.is_ignored(Path::new("sub/build"), true));
+    }
+
+    #[test]
+    fn internal_slash_anchors_and_keeps_the_slash() {
+        let gi = Gitignore::parse("src/gen");
+        assert!(gi.is_ignored(Path::new("src/gen"), true));
+        assert!(!gi.is_ignored(Path::new("other/src/gen"), true));
+    }
+
+    #[test]
+    fn trailing_slash_only_matches_directories() {
+        let gi = Gitignore::parse("build/");
+        assert!(gi.is_ignored(Path::new("build"), true));
+        assert!(!gi.is_ignored(Path::new("build"), false));
+    }
+
+    #[test]
+    fn negation_overrides_a_previous_broader_match() {
+        let gi = Gitignore::parse("*.log\n!important.log\n");
+        assert!(gi.is_ignored(Path::new("a.log"), false));
+        assert!(!gi.is_ignored(Path::new("important.log"), false));
+    }
+
+    #[test]
+    fn later_pattern_overrides_earlier_negation() {
+        let gi = Gitignore::parse("!keep.txt\nkeep.txt\n");
+        assert!(gi.is_ignored(Path::new("keep.txt"), false));
+    }
+
+    #[test]
+    fn unmatched_path_is_not_ignored() {
+        let gi = Gitignore::parse("*.log");
+        assert!(!gi.is_ignored(Path::new("readme.md"), false));
+    }
+}

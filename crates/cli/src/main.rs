@@ -28,14 +28,8 @@ fn run() -> Result<bool, AppError> {
                 Err(e) => return Err(e.into()),
             };
             let gitignore = Gitignore::parse(&contents);
-            let should_skip = |path: &Path, is_dir: bool| {
-                if is_dir && path.file_name() == Some(OsStr::new(".git")) {
-                    return true;
-                }
-
-                let relative = path.strip_prefix(&root).unwrap_or(path);
-                gitignore.is_ignored(relative, is_dir)
-            };
+            let should_skip =
+                |path: &Path, is_dir: bool| should_skip_path(path, is_dir, &root, &gitignore);
 
             let mut separator_needed = false;
             let mut had_error = false;
@@ -89,6 +83,15 @@ fn search_file(regex: &Regex, path: &Path, header: Option<&mut bool>) -> Result<
     Ok(())
 }
 
+fn should_skip_path(path: &Path, is_dir: bool, root: &Path, gitignore: &Gitignore) -> bool {
+    if is_dir && path.file_name() == Some(OsStr::new(".git")) {
+        return true;
+    }
+
+    let relative = path.strip_prefix(root).unwrap_or(path);
+    gitignore.is_ignored(relative, is_dir)
+}
+
 fn search_stdin(regex: &Regex) {
     let stdin = io::stdin().lock();
     let reader = BufReader::new(stdin);
@@ -106,5 +109,76 @@ fn main() {
             eprintln!("Error: {}", e);
             std::process::exit(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn skips_the_git_directory_regardless_of_gitignore_content() {
+        let gitignore = Gitignore::parse("");
+        let root = Path::new("/repo");
+        assert!(should_skip_path(
+            Path::new("/repo/.git"),
+            true,
+            root,
+            &gitignore
+        ));
+    }
+
+    #[test]
+    fn does_not_skip_a_file_that_is_not_a_directory_named_dot_git() {
+        let gitignore = Gitignore::parse("");
+        let root = Path::new("/repo");
+        assert!(!should_skip_path(
+            Path::new("/repo/.git"),
+            false,
+            root,
+            &gitignore
+        ));
+    }
+
+    #[test]
+    fn skips_files_matched_by_gitignore() {
+        let gitignore = Gitignore::parse("*.log");
+        let root = Path::new("/repo");
+        assert!(should_skip_path(
+            Path::new("/repo/debug.log"),
+            false,
+            root,
+            &gitignore
+        ));
+    }
+
+    #[test]
+    fn does_not_skip_files_not_matched_by_gitignore() {
+        let gitignore = Gitignore::parse("*.log");
+        let root = Path::new("/repo");
+        assert!(!should_skip_path(
+            Path::new("/repo/main.rs"),
+            false,
+            root,
+            &gitignore
+        ));
+    }
+
+    #[test]
+    fn matches_relative_to_root_not_the_full_path() {
+        let gitignore = Gitignore::parse("/build");
+        let root = Path::new("/repo");
+        assert!(should_skip_path(
+            Path::new("/repo/build"),
+            true,
+            root,
+            &gitignore
+        ));
+        assert!(!should_skip_path(
+            Path::new("/repo/sub/build"),
+            true,
+            root,
+            &gitignore
+        ));
     }
 }
