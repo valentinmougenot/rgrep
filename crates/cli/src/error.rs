@@ -4,6 +4,8 @@ use regex_engine::ParseError;
 
 use crate::args::ArgsError;
 
+pub type AppResult<T> = Result<T, AppError>;
+
 #[derive(Debug)]
 pub enum AppError {
     Args(ArgsError),

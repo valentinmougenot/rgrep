@@ -11,7 +11,7 @@ use search::{LineMatch, search};
 use crate::{
     args::{Args, parse},
     colorizer::Colorizer,
-    error::AppError,
+    error::{AppError, AppResult},
     gitignore::Gitignore,
     walk::walk,
 };
@@ -25,7 +25,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> Result<Self, AppError> {
+    pub fn new() -> AppResult<Self> {
         let args = parse(&mut std::env::args().skip(1))?;
         let regex = Regex::new(&args.pattern)?;
         let colorizer = Colorizer::from_stdout();
@@ -53,7 +53,7 @@ impl App {
         })
     }
 
-    pub fn run(&self) -> Result<bool, AppError> {
+    pub fn run(&self) -> AppResult<bool> {
         let had_error = match &self.args.path {
             Some(root) if root.is_dir() => {
                 let mut separator_needed = false;
@@ -85,7 +85,7 @@ impl App {
         Ok(had_error)
     }
 
-    fn search_file(&self, path: &Path, header: Option<&mut bool>) -> Result<(), AppError> {
+    fn search_file(&self, path: &Path, header: Option<&mut bool>) -> AppResult<()> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
 
