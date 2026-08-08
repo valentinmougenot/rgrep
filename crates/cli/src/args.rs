@@ -126,4 +126,67 @@ mod tests {
         let err = parse_vec(vec!["ab", "file.txt", "extra"]).unwrap_err();
         assert_eq!(err.kind, ArgsErrorKind::UnexpectedArgument("extra".into()));
     }
+
+    #[test]
+    fn default_output_mode_is_matches() {
+        let args = parse_vec(vec!["ab"]).unwrap();
+        assert_eq!(args.output_mode, OutputMode::Matches);
+    }
+
+    #[test]
+    fn short_count_flag_sets_count_mode() {
+        let args = parse_vec(vec!["-c", "ab"]).unwrap();
+        assert_eq!(args.output_mode, OutputMode::Count);
+    }
+
+    #[test]
+    fn short_files_flag_sets_files_mode() {
+        let args = parse_vec(vec!["-l", "ab"]).unwrap();
+        assert_eq!(args.output_mode, OutputMode::Files);
+    }
+
+    #[test]
+    fn long_count_flag_sets_count_mode() {
+        let args = parse_vec(vec!["--count", "ab"]).unwrap();
+        assert_eq!(args.output_mode, OutputMode::Count);
+    }
+
+    #[test]
+    fn long_files_flag_sets_files_mode() {
+        let args = parse_vec(vec!["--files-with-matches", "ab"]).unwrap();
+        assert_eq!(args.output_mode, OutputMode::Files);
+    }
+
+    #[test]
+    fn bundled_short_flags_the_last_character_wins() {
+        let args = parse_vec(vec!["-lc", "ab"]).unwrap();
+        assert_eq!(args.output_mode, OutputMode::Count);
+
+        let args = parse_vec(vec!["-cl", "ab"]).unwrap();
+        assert_eq!(args.output_mode, OutputMode::Files);
+    }
+
+    #[test]
+    fn later_flag_wins_over_an_earlier_one() {
+        let args = parse_vec(vec!["-c", "-l", "ab"]).unwrap();
+        assert_eq!(args.output_mode, OutputMode::Files);
+
+        let args = parse_vec(vec!["-l", "-c", "ab"]).unwrap();
+        assert_eq!(args.output_mode, OutputMode::Count);
+    }
+
+    #[test]
+    fn unknown_short_flag_in_a_bundle_is_unexpected() {
+        let err = parse_vec(vec!["-lx", "ab"]).unwrap_err();
+        assert_eq!(err.kind, ArgsErrorKind::UnexpectedArgument("-lx".into()));
+    }
+
+    #[test]
+    fn unknown_long_flag_is_unexpected() {
+        let err = parse_vec(vec!["--bogus", "ab"]).unwrap_err();
+        assert_eq!(
+            err.kind,
+            ArgsErrorKind::UnexpectedArgument("--bogus".into())
+        );
+    }
 }
