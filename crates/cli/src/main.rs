@@ -6,11 +6,12 @@ use std::{
 };
 
 use regex_engine::Regex;
-use search::search;
+use search::{LineMatch, search};
 
-use crate::{args::parse, error::AppError, gitignore::Gitignore, walk::walk};
+use crate::{args::parse, colorizer::Colorizer, error::AppError, gitignore::Gitignore, walk::walk};
 
 mod args;
+mod colorizer;
 mod error;
 mod gitignore;
 mod walk;
@@ -19,6 +20,8 @@ fn run() -> Result<bool, AppError> {
     let args = parse(&mut std::env::args().skip(1))?;
 
     let regex = Regex::new(&args.pattern)?;
+
+    let colorizer = Colorizer::from_stdout();
 
     let had_error = match args.path {
         Some(root) if root.is_dir() => {
@@ -36,7 +39,7 @@ fn run() -> Result<bool, AppError> {
 
             for entry in walk(&root, should_skip) {
                 let result = entry.map_err(AppError::from).and_then(|file_path| {
-                    search_file(&regex, &file_path, Some(&mut separator_needed))
+                    search_file(&regex, &file_path, Some(&mut separator_needed), &colorizer)
                 });
 
                 if let Err(e) = result {
@@ -48,11 +51,11 @@ fn run() -> Result<bool, AppError> {
             had_error
         }
         Some(path) => {
-            search_file(&regex, &path, None)?;
+            search_file(&regex, &path, None, &colorizer)?;
             false
         }
         None => {
-            search_stdin(&regex);
+            search_stdin(&regex, &colorizer);
             false
         }
     };
@@ -60,7 +63,12 @@ fn run() -> Result<bool, AppError> {
     Ok(had_error)
 }
 
-fn search_file(regex: &Regex, path: &Path, header: Option<&mut bool>) -> Result<(), AppError> {
+fn search_file(
+    regex: &Regex,
+    path: &Path,
+    header: Option<&mut bool>,
+    colorizer: &Colorizer,
+) -> Result<(), AppError> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
 
@@ -71,12 +79,12 @@ fn search_file(regex: &Regex, path: &Path, header: Option<&mut bool>) -> Result<
             if *separator_needed {
                 println!();
             }
-            println!("{}", path.display());
+            println!("{}", colorizer.path(&path.display().to_string()));
             *separator_needed = true;
         }
 
         for m in matches {
-            println!("{}:{}", m.line_number, m.line.trim_end());
+            print_match(&m, colorizer);
         }
     }
 
@@ -92,13 +100,24 @@ fn should_skip_path(path: &Path, is_dir: bool, root: &Path, gitignore: &Gitignor
     gitignore.is_ignored(relative, is_dir)
 }
 
-fn search_stdin(regex: &Regex) {
+fn search_stdin(regex: &Regex, colorizer: &Colorizer) {
     let stdin = io::stdin().lock();
     let reader = BufReader::new(stdin);
 
     for m in search(regex, reader) {
-        println!("{}:{}", m.line_number, m.line.trim_end());
+        print_match(&m, colorizer);
     }
+}
+
+fn print_match(line_match: &LineMatch, colorizer: &Colorizer) {
+    print!("{}:", colorizer.line_number(line_match.line_number));
+    let line = line_match.line.trim_end();
+    print!("{}", &line[..line_match.start]);
+    print!(
+        "{}",
+        colorizer.matched(&line[line_match.start..line_match.end])
+    );
+    println!("{}", &line[line_match.end..]);
 }
 
 fn main() {
