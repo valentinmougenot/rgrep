@@ -1,10 +1,12 @@
 use std::{fmt::Display, path::PathBuf};
 
+use crate::output::OutputMode;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Args {
     pub pattern: String,
     pub path: Option<PathBuf>,
-    pub count_only: bool,
+    pub output_mode: OutputMode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,11 +31,12 @@ impl Display for ArgsError {
 
 pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError> {
     let mut positionals = Vec::new();
-    let mut count_only = false;
+    let mut output_mode = OutputMode::Matches;
 
     for arg in args {
         match arg.as_str() {
-            "-c" | "--count" => count_only = true,
+            "-c" | "--count" => output_mode = OutputMode::Count,
+            "-l" | "--files-with-matches" => output_mode = OutputMode::Files,
             _ if arg.starts_with("-") => {
                 return Err(ArgsError {
                     kind: ArgsErrorKind::UnexpectedArgument(arg),
@@ -59,7 +62,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
     Ok(Args {
         pattern,
         path,
-        count_only,
+        output_mode,
     })
 }
 

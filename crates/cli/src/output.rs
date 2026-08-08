@@ -8,6 +8,7 @@ use crate::colorizer::Colorizer;
 pub enum OutputMode {
     Matches,
     Count,
+    Files,
 }
 
 pub struct Output<W: io::Write> {
@@ -37,6 +38,7 @@ impl<W: io::Write> Output<W> {
         match self.mode {
             OutputMode::Matches => self.report_matches(matches, path),
             OutputMode::Count => self.report_count(matches, path),
+            OutputMode::Files => self.report_files(matches, path),
         }
     }
 
@@ -55,7 +57,12 @@ impl<W: io::Write> Output<W> {
                 self.separator_needed = true;
             }
 
-            writeln!(self.writer, "{}", self.colorizer.path(path)).unwrap();
+            writeln!(
+                self.writer,
+                "{}",
+                self.colorizer.path(&path.display().to_string())
+            )
+            .unwrap();
         }
 
         for line_match in matches {
@@ -85,9 +92,27 @@ impl<W: io::Write> Output<W> {
     ) {
         if matches.peek().is_some() {
             if let Some(path) = path {
-                write!(self.writer, "{}:", self.colorizer.path(path)).unwrap();
+                write!(
+                    self.writer,
+                    "{}:",
+                    self.colorizer.path(&path.display().to_string())
+                )
+                .unwrap();
             }
             writeln!(self.writer, "{}", matches.count()).unwrap();
+        }
+    }
+
+    fn report_files(
+        &mut self,
+        matches: &mut Peekable<impl Iterator<Item = LineMatch>>,
+        path: Option<&Path>,
+    ) {
+        if matches.peek().is_some() {
+            let label = path
+                .map(|p| p.display().to_string())
+                .unwrap_or("<stdin>".to_string());
+            writeln!(self.writer, "{}", self.colorizer.path(&label)).unwrap();
         }
     }
 }

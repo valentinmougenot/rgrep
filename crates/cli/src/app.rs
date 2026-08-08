@@ -42,15 +42,10 @@ impl App {
             Gitignore::empty()
         };
 
-        let output_mode = if args.count_only {
-            OutputMode::Count
-        } else {
-            OutputMode::Matches
-        };
         let output = Output::new(
-            output_mode,
+            args.output_mode,
             io::stdout(),
-            output_mode == OutputMode::Matches && root.is_some(),
+            args.output_mode == OutputMode::Matches && root.is_some(),
         );
 
         Ok(Self {

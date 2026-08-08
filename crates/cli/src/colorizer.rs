@@ -1,7 +1,4 @@
-use std::{
-    io::{self, IsTerminal},
-    path::Path,
-};
+use std::io::{self, IsTerminal};
 
 pub struct Colorizer {
     enabled: bool,
@@ -14,8 +11,8 @@ impl Colorizer {
         }
     }
 
-    pub fn path(&self, text: &Path) -> String {
-        self.wrap(&text.display().to_string(), "35")
+    pub fn path(&self, text: &str) -> String {
+        self.wrap(text, "35")
     }
 
     pub fn line_number(&self, line: usize) -> String {
@@ -42,16 +39,13 @@ mod tests {
     #[test]
     fn path_is_wrapped_in_magenta_when_enabled() {
         let colorizer = Colorizer { enabled: true };
-        assert_eq!(
-            colorizer.path(Path::new("file.txt")),
-            "\x1b[35mfile.txt\x1b[0m"
-        );
+        assert_eq!(colorizer.path("file.txt"), "\x1b[35mfile.txt\x1b[0m");
     }
 
     #[test]
     fn path_is_unchanged_when_disabled() {
         let colorizer = Colorizer { enabled: false };
-        assert_eq!(colorizer.path(Path::new("file.txt")), "file.txt");
+        assert_eq!(colorizer.path("file.txt"), "file.txt");
     }
 
     #[test]
