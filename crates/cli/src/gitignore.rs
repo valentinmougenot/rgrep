@@ -5,6 +5,12 @@ pub struct Gitignore {
 }
 
 impl Gitignore {
+    pub fn empty() -> Self {
+        Self {
+            patterns: Vec::new(),
+        }
+    }
+
     pub fn parse(contents: &str) -> Self {
         let mut patterns = Vec::new();
 
