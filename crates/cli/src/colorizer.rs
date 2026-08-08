@@ -31,3 +31,44 @@ impl Colorizer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn path_is_wrapped_in_magenta_when_enabled() {
+        let colorizer = Colorizer { enabled: true };
+        assert_eq!(colorizer.path("file.txt"), "\x1b[35mfile.txt\x1b[0m");
+    }
+
+    #[test]
+    fn path_is_unchanged_when_disabled() {
+        let colorizer = Colorizer { enabled: false };
+        assert_eq!(colorizer.path("file.txt"), "file.txt");
+    }
+
+    #[test]
+    fn line_number_is_wrapped_in_green_when_enabled() {
+        let colorizer = Colorizer { enabled: true };
+        assert_eq!(colorizer.line_number(42), "\x1b[32m42\x1b[0m");
+    }
+
+    #[test]
+    fn line_number_is_unchanged_when_disabled() {
+        let colorizer = Colorizer { enabled: false };
+        assert_eq!(colorizer.line_number(42), "42");
+    }
+
+    #[test]
+    fn matched_is_wrapped_in_bold_red_when_enabled() {
+        let colorizer = Colorizer { enabled: true };
+        assert_eq!(colorizer.matched("hello"), "\x1b[1;31mhello\x1b[0m");
+    }
+
+    #[test]
+    fn matched_is_unchanged_when_disabled() {
+        let colorizer = Colorizer { enabled: false };
+        assert_eq!(colorizer.matched("hello"), "hello");
+    }
+}
