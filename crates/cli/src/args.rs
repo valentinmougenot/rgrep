@@ -194,4 +194,29 @@ mod tests {
             ArgsErrorKind::UnexpectedArgument("--bogus".into())
         );
     }
+
+    #[test]
+    fn default_case_insensitive_is_false() {
+        let args = parse_vec(vec!["ab"]).unwrap();
+        assert!(!args.case_insensitive);
+    }
+
+    #[test]
+    fn short_ignore_case_flag_sets_case_insensitive() {
+        let args = parse_vec(vec!["-i", "ab"]).unwrap();
+        assert!(args.case_insensitive);
+    }
+
+    #[test]
+    fn long_ignore_case_flag_sets_case_insensitive() {
+        let args = parse_vec(vec!["--ignore-case", "ab"]).unwrap();
+        assert!(args.case_insensitive);
+    }
+
+    #[test]
+    fn ignore_case_can_be_bundled_with_other_short_flags() {
+        let args = parse_vec(vec!["-ic", "ab"]).unwrap();
+        assert!(args.case_insensitive);
+        assert_eq!(args.output_mode, OutputMode::Count);
+    }
 }
