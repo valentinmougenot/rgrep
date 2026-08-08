@@ -2,18 +2,25 @@ use std::collections::VecDeque;
 
 use crate::nfa::{AssertKind, Nfa, State};
 
-pub(crate) fn is_match(nfa: &Nfa, text: &str) -> bool {
-    find(nfa, text).is_some()
+pub(crate) fn is_match(nfa: &Nfa, text: &str, case_insensitive: bool) -> bool {
+    find(nfa, text, case_insensitive).is_some()
 }
 
-pub(crate) fn find(nfa: &Nfa, text: &str) -> Option<(usize, usize)> {
+pub(crate) fn find(nfa: &Nfa, text: &str, case_insensitive: bool) -> Option<(usize, usize)> {
     let mut current = epsilon_closure(nfa, &[(nfa.start(), 0)], true, text.is_empty());
 
     for (i, c) in text.char_indices() {
         let mut collected_targets = Vec::new();
         for (state_idx, start_pos) in &current {
             match nfa.state(*state_idx) {
-                State::Consuming(ranges, target) if ranges.iter().any(|r| r.contains(c)) => {
+                State::Consuming(ranges, target)
+                    if ranges.iter().any(|r| {
+                        r.contains(c)
+                            || (case_insensitive
+                                && (r.contains(c.to_ascii_lowercase())
+                                    || r.contains(c.to_ascii_uppercase())))
+                    }) =>
+                {
                     collected_targets.push((*target, *start_pos))
                 }
                 State::Match => return Some((*start_pos, i)),
@@ -98,127 +105,127 @@ mod tests {
 
     #[test]
     fn matches_exact_literal() {
-        assert!(is_match(&compile("abc"), "abc"));
+        assert!(is_match(&compile("abc"), "abc", false));
     }
 
     #[test]
     fn does_not_match_unrelated_text() {
-        assert!(!is_match(&compile("abc"), "xyz"));
+        assert!(!is_match(&compile("abc"), "xyz", false));
     }
 
     #[test]
     fn matches_substring_anywhere_in_text() {
-        assert!(is_match(&compile("ab"), "xxabxx"));
+        assert!(is_match(&compile("ab"), "xxabxx", false));
     }
 
     #[test]
     fn unanchored_match_ending_exactly_at_end_of_text_is_detected() {
-        assert!(is_match(&compile("bc"), "abc"));
+        assert!(is_match(&compile("bc"), "abc", false));
     }
 
     #[test]
     fn caret_rejects_match_not_at_start() {
-        assert!(!is_match(&compile("^ab"), "xab"));
+        assert!(!is_match(&compile("^ab"), "xab", false));
     }
 
     #[test]
     fn caret_accepts_match_at_start() {
-        assert!(is_match(&compile("^ab"), "abxx"));
+        assert!(is_match(&compile("^ab"), "abxx", false));
     }
 
     #[test]
     fn dollar_rejects_match_not_at_end() {
-        assert!(!is_match(&compile("ab$"), "abxx"));
+        assert!(!is_match(&compile("ab$"), "abxx", false));
     }
 
     #[test]
     fn dollar_accepts_match_at_end() {
-        assert!(is_match(&compile("ab$"), "xxab"));
+        assert!(is_match(&compile("ab$"), "xxab", false));
     }
 
     #[test]
     fn both_anchors_require_exact_full_match() {
         let nfa = compile("^ab$");
-        assert!(is_match(&nfa, "ab"));
-        assert!(!is_match(&nfa, "xab"));
-        assert!(!is_match(&nfa, "abx"));
+        assert!(is_match(&nfa, "ab", false));
+        assert!(!is_match(&nfa, "xab", false));
+        assert!(!is_match(&nfa, "abx", false));
     }
 
     #[test]
     fn star_matches_empty_string() {
-        assert!(is_match(&compile("a*"), ""));
+        assert!(is_match(&compile("a*"), "", false));
     }
 
     #[test]
     fn optional_group_matches_when_present_and_absent() {
         let nfa = compile("colou?r");
-        assert!(is_match(&nfa, "color"));
-        assert!(is_match(&nfa, "colour"));
+        assert!(is_match(&nfa, "color", false));
+        assert!(is_match(&nfa, "colour", false));
     }
 
     #[test]
     fn alternation_matches_any_branch() {
         let nfa = compile("cat|dog");
-        assert!(is_match(&nfa, "cat"));
-        assert!(is_match(&nfa, "dog"));
-        assert!(!is_match(&nfa, "bird"));
+        assert!(is_match(&nfa, "cat", false));
+        assert!(is_match(&nfa, "dog", false));
+        assert!(!is_match(&nfa, "bird", false));
     }
 
     #[test]
     fn multi_byte_utf8_characters_are_matched() {
-        assert!(is_match(&compile("é"), "café"));
-        assert!(is_match(&compile("é$"), "café"));
+        assert!(is_match(&compile("é"), "café", false));
+        assert!(is_match(&compile("é$"), "café", false));
     }
 
     #[test]
     fn find_returns_none_when_there_is_no_match() {
-        assert_eq!(find(&compile("abc"), "xyz"), None);
+        assert_eq!(find(&compile("abc"), "xyz", false), None);
     }
 
     #[test]
     fn find_returns_the_span_of_an_exact_literal_match() {
-        assert_eq!(find(&compile("abc"), "abc"), Some((0, 3)));
+        assert_eq!(find(&compile("abc"), "abc", false), Some((0, 3)));
     }
 
     #[test]
     fn find_returns_the_span_of_an_unanchored_substring_match() {
-        assert_eq!(find(&compile("ab"), "xxabxx"), Some((2, 4)));
+        assert_eq!(find(&compile("ab"), "xxabxx", false), Some((2, 4)));
     }
 
     #[test]
     fn find_returns_the_span_of_a_match_ending_exactly_at_end_of_text() {
-        assert_eq!(find(&compile("bc"), "abc"), Some((1, 3)));
+        assert_eq!(find(&compile("bc"), "abc", false), Some((1, 3)));
     }
 
     #[test]
     fn find_respects_the_caret_anchor() {
-        assert_eq!(find(&compile("^ab"), "xab"), None);
-        assert_eq!(find(&compile("^ab"), "abxx"), Some((0, 2)));
+        assert_eq!(find(&compile("^ab"), "xab", false), None);
+        assert_eq!(find(&compile("^ab"), "abxx", false), Some((0, 2)));
     }
 
     #[test]
     fn find_respects_the_dollar_anchor() {
-        assert_eq!(find(&compile("ab$"), "abxx"), None);
-        assert_eq!(find(&compile("ab$"), "xxab"), Some((2, 4)));
+        assert_eq!(find(&compile("ab$"), "abxx", false), None);
+        assert_eq!(find(&compile("ab$"), "xxab", false), Some((2, 4)));
     }
 
     #[test]
     fn find_returns_a_zero_length_span_for_an_empty_match() {
-        assert_eq!(find(&compile("a*"), ""), Some((0, 0)));
+        assert_eq!(find(&compile("a*"), "", false), Some((0, 0)));
     }
 
     #[test]
     fn find_returns_the_span_of_the_matching_alternation_branch() {
-        assert_eq!(find(&compile("cat|dog"), "the dog ran"), Some((4, 7)));
+        assert_eq!(find(&compile("cat|dog"), "the dog ran", false), Some((4, 7)));
     }
 
     #[test]
     fn find_returns_byte_offsets_for_multi_byte_utf8_characters() {
-        assert_eq!(find(&compile("é"), "café"), Some((3, 5)));
+        assert_eq!(find(&compile("é"), "café", false), Some((3, 5)));
     }
 
     #[test]
     fn find_prefers_the_leftmost_starting_match() {
-        assert_eq!(find(&compile("a"), "xax a"), Some((1, 2)));
+        assert_eq!(find(&compile("a"), "xax a", false), Some((1, 2)));
     }
 }

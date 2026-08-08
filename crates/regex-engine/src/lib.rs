@@ -8,4 +8,4 @@ mod scanner;
 mod vm;
 
 pub use error::{ParseError, ParseErrorKind};
-pub use regex::Regex;
+pub use regex::{Regex, RegexBuilder};

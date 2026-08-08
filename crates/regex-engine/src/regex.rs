@@ -8,6 +8,7 @@ use crate::{
 
 pub struct Regex {
     nfa: Nfa,
+    case_insensitive: bool,
 }
 
 impl Regex {
@@ -17,15 +18,18 @@ impl Regex {
         let compiler = Compiler::new();
         let nfa = compiler.build(&ast);
 
-        Ok(Self { nfa })
+        Ok(Self {
+            nfa,
+            case_insensitive: false,
+        })
     }
 
     pub fn is_match(&self, text: &str) -> bool {
-        is_match(&self.nfa, text)
+        is_match(&self.nfa, text, self.case_insensitive)
     }
 
     pub fn find<'t>(&self, text: &'t str) -> Option<Match<'t>> {
-        let (start, end) = find(&self.nfa, text)?;
+        let (start, end) = find(&self.nfa, text, self.case_insensitive)?;
         Some(Match { text, start, end })
     }
 }
@@ -47,6 +51,37 @@ impl<'t> Match<'t> {
 
     pub fn as_str(&self) -> &str {
         &self.text[self.start..self.end]
+    }
+}
+
+pub struct RegexBuilder {
+    pattern: String,
+    case_insensitive: bool,
+}
+
+impl RegexBuilder {
+    pub fn new(pattern: String) -> Self {
+        Self {
+            pattern,
+            case_insensitive: false,
+        }
+    }
+
+    pub fn case_insensitive(mut self, value: bool) -> Self {
+        self.case_insensitive = value;
+        self
+    }
+
+    pub fn build(self) -> Result<Regex, ParseError> {
+        let mut parser = Parser::new(&self.pattern);
+        let ast = parser.parse()?;
+        let compiler = Compiler::new();
+        let nfa = compiler.build(&ast);
+
+        Ok(Regex {
+            nfa,
+            case_insensitive: self.case_insensitive,
+        })
     }
 }
 
