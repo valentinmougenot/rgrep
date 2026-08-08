@@ -5,6 +5,7 @@ mod args;
 mod colorizer;
 mod error;
 mod gitignore;
+mod output;
 mod walk;
 
 fn main() {

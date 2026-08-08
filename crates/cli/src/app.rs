@@ -6,13 +6,14 @@ use std::{
 };
 
 use regex_engine::Regex;
-use search::{LineMatch, search};
+use search::search;
 
 use crate::{
     args::{Args, parse},
     colorizer::Colorizer,
     error::{AppError, AppResult},
     gitignore::Gitignore,
+    output::{OutputMode, report},
     walk::walk,
 };
 
@@ -22,6 +23,7 @@ pub struct App {
     root: Option<PathBuf>,
     gitignore: Gitignore,
     colorizer: Colorizer,
+    output_mode: OutputMode,
 }
 
 impl App {
@@ -44,12 +46,19 @@ impl App {
             Gitignore::empty()
         };
 
+        let output_mode = if args.count_only {
+            OutputMode::Count
+        } else {
+            OutputMode::Matches
+        };
+
         Ok(Self {
             args,
             regex,
             root,
             gitignore,
             colorizer,
+            output_mode,
         })
     }
 
@@ -91,19 +100,13 @@ impl App {
 
         let mut matches = search(&self.regex, reader).peekable();
 
-        if matches.peek().is_some() {
-            if let Some(separator_needed) = header {
-                if *separator_needed {
-                    println!();
-                }
-                println!("{}", self.colorizer.path(&path.display().to_string()));
-                *separator_needed = true;
-            }
-
-            for m in matches {
-                self.print_match(&m);
-            }
-        }
+        report(
+            self.output_mode,
+            &self.colorizer,
+            &mut matches,
+            Some(path),
+            header,
+        );
 
         Ok(())
     }
@@ -112,21 +115,9 @@ impl App {
         let stdin = io::stdin().lock();
         let reader = BufReader::new(stdin);
 
-        for m in search(&self.regex, reader) {
-            self.print_match(&m);
-        }
-    }
+        let matches = &mut search(&self.regex, reader).peekable();
 
-    fn print_match(&self, line_match: &LineMatch) {
-        print!("{}:", self.colorizer.line_number(line_match.line_number));
-        let line = line_match.line.trim_end();
-        print!("{}", &line[..line_match.start]);
-        print!(
-            "{}",
-            self.colorizer
-                .matched(&line[line_match.start..line_match.end])
-        );
-        println!("{}", &line[line_match.end..]);
+        report(self.output_mode, &self.colorizer, matches, None, None);
     }
 
     fn should_skip_path(&self, path: &Path, is_dir: bool) -> bool {
@@ -151,11 +142,13 @@ mod tests {
             args: Args {
                 pattern: String::new(),
                 path: None,
+                count_only: false,
             },
             regex: Regex::new("x").unwrap(),
             root: Some(PathBuf::from(root)),
             gitignore: Gitignore::parse(gitignore),
             colorizer: Colorizer::from_stdout(),
+            output_mode: OutputMode::Matches,
         }
     }
 

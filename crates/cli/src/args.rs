@@ -4,6 +4,7 @@ use std::{fmt::Display, path::PathBuf};
 pub struct Args {
     pub pattern: String,
     pub path: Option<PathBuf>,
+    pub count_only: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,36 +28,39 @@ impl Display for ArgsError {
 }
 
 pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError> {
-    let pattern = match args.next() {
-        Some(arg) if !arg.starts_with("-") => arg,
-        Some(arg) => {
-            return Err(ArgsError {
-                kind: ArgsErrorKind::UnexpectedArgument(arg),
-            });
-        }
-        None => {
-            return Err(ArgsError {
-                kind: ArgsErrorKind::MissingPattern,
-            });
-        }
-    };
+    let mut positionals = Vec::new();
+    let mut count_only = false;
 
-    let path = match args.next() {
-        Some(arg) if arg.starts_with("-") => {
-            return Err(ArgsError {
-                kind: ArgsErrorKind::UnexpectedArgument(arg),
-            });
+    for arg in args {
+        match arg.as_str() {
+            "-c" | "--count" => count_only = true,
+            _ if arg.starts_with("-") => {
+                return Err(ArgsError {
+                    kind: ArgsErrorKind::UnexpectedArgument(arg),
+                });
+            }
+            _ => positionals.push(arg),
         }
-        arg => arg.map(PathBuf::from),
-    };
-
-    if let Some(arg) = args.next() {
-        Err(ArgsError {
-            kind: ArgsErrorKind::UnexpectedArgument(arg),
-        })
-    } else {
-        Ok(Args { pattern, path })
     }
+
+    let mut positionals = positionals.into_iter();
+
+    let pattern = positionals.next().ok_or(ArgsError {
+        kind: ArgsErrorKind::MissingPattern,
+    })?;
+    let path = positionals.next().map(PathBuf::from);
+
+    if let Some(arg) = positionals.next() {
+        return Err(ArgsError {
+            kind: ArgsErrorKind::UnexpectedArgument(arg),
+        });
+    }
+
+    Ok(Args {
+        pattern,
+        path,
+        count_only,
+    })
 }
 
 #[cfg(test)]
@@ -102,9 +106,6 @@ mod tests {
     #[test]
     fn extra_positional_argument_is_unexpected() {
         let err = parse_vec(vec!["ab", "file.txt", "extra"]).unwrap_err();
-        assert_eq!(
-            err.kind,
-            ArgsErrorKind::UnexpectedArgument("extra".into())
-        );
+        assert_eq!(err.kind, ArgsErrorKind::UnexpectedArgument("extra".into()));
     }
 }
