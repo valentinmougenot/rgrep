@@ -9,7 +9,7 @@ mod output;
 mod walk;
 
 fn main() {
-    let app = match App::new() {
+    let mut app = match App::new() {
         Ok(app) => app,
         Err(e) => {
             eprintln!("Error: {}", e);

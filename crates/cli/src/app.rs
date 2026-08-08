@@ -2,7 +2,7 @@ use std::{
     ffi::OsStr,
     fs::File,
     io::{self, BufReader},
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use regex_engine::Regex;
@@ -10,27 +10,23 @@ use search::search;
 
 use crate::{
     args::{Args, parse},
-    colorizer::Colorizer,
     error::{AppError, AppResult},
     gitignore::Gitignore,
-    output::{OutputMode, report},
+    output::{Output, OutputMode},
     walk::walk,
 };
 
 pub struct App {
     args: Args,
     regex: Regex,
-    root: Option<PathBuf>,
     gitignore: Gitignore,
-    colorizer: Colorizer,
-    output_mode: OutputMode,
+    output: Output<io::Stdout>,
 }
 
 impl App {
     pub fn new() -> AppResult<Self> {
         let args = parse(&mut std::env::args().skip(1))?;
         let regex = Regex::new(&args.pattern)?;
-        let colorizer = Colorizer::from_stdout();
 
         let mut root = None;
         let gitignore = if let Some(ref path) = args.path
@@ -51,27 +47,32 @@ impl App {
         } else {
             OutputMode::Matches
         };
+        let output = Output::new(
+            output_mode,
+            io::stdout(),
+            output_mode == OutputMode::Matches && root.is_some(),
+        );
 
         Ok(Self {
             args,
             regex,
-            root,
             gitignore,
-            colorizer,
-            output_mode,
+            output,
         })
     }
 
-    pub fn run(&self) -> AppResult<bool> {
-        let had_error = match &self.args.path {
+    pub fn run(&mut self) -> AppResult<bool> {
+        let had_error = match self.args.path.clone() {
             Some(root) if root.is_dir() => {
-                let mut separator_needed = false;
                 let mut had_error = false;
 
-                for entry in walk(root, |path, is_dir| self.should_skip_path(path, is_dir)) {
-                    let result = entry.map_err(AppError::from).and_then(|file_path| {
-                        self.search_file(&file_path, Some(&mut separator_needed))
-                    });
+                let gitignore = self.gitignore.clone();
+                for entry in walk(&root, |path, is_dir| {
+                    Self::should_skip_path(path, is_dir, &root, &gitignore)
+                }) {
+                    let result = entry
+                        .map_err(AppError::from)
+                        .and_then(|file_path| self.search_file(&file_path));
 
                     if let Err(e) = result {
                         eprintln!("{}", e);
@@ -82,7 +83,7 @@ impl App {
                 had_error
             }
             Some(path) => {
-                self.search_file(path, None)?;
+                self.search_file(&path)?;
                 false
             }
             None => {
@@ -94,50 +95,33 @@ impl App {
         Ok(had_error)
     }
 
-    fn search_file(&self, path: &Path, header: Option<&mut bool>) -> AppResult<()> {
+    fn search_file(&mut self, path: &Path) -> AppResult<()> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
 
         let mut matches = search(&self.regex, reader).peekable();
 
-        report(
-            self.output_mode,
-            &self.colorizer,
-            &mut matches,
-            Some(path),
-            header,
-            &mut io::stdout(),
-        );
+        self.output.report(&mut matches, Some(path));
 
         Ok(())
     }
 
-    fn search_stdin(&self) {
+    fn search_stdin(&mut self) {
         let stdin = io::stdin().lock();
         let reader = BufReader::new(stdin);
 
         let matches = &mut search(&self.regex, reader).peekable();
 
-        report(
-            self.output_mode,
-            &self.colorizer,
-            matches,
-            None,
-            None,
-            &mut io::stdout(),
-        );
+        self.output.report(matches, None);
     }
 
-    fn should_skip_path(&self, path: &Path, is_dir: bool) -> bool {
+    fn should_skip_path(path: &Path, is_dir: bool, root: &Path, gitignore: &Gitignore) -> bool {
         if is_dir && path.file_name() == Some(OsStr::new(".git")) {
             return true;
         }
 
-        let relative = match &self.root {
-            Some(root) => path.strip_prefix(root).unwrap_or(path),
-            None => path,
-        };
-        self.gitignore.is_ignored(relative, is_dir)
+        let relative = path.strip_prefix(root).unwrap_or(path);
+        gitignore.is_ignored(relative, is_dir)
     }
 }
 
@@ -145,49 +129,69 @@ impl App {
 mod tests {
     use super::*;
 
-    fn app_with(root: &str, gitignore: &str) -> App {
-        App {
-            args: Args {
-                pattern: String::new(),
-                path: None,
-                count_only: false,
-            },
-            regex: Regex::new("x").unwrap(),
-            root: Some(PathBuf::from(root)),
-            gitignore: Gitignore::parse(gitignore),
-            colorizer: Colorizer::from_stdout(),
-            output_mode: OutputMode::Matches,
-        }
-    }
-
     #[test]
     fn skips_the_git_directory_regardless_of_gitignore_content() {
-        let app = app_with("/repo", "");
-        assert!(app.should_skip_path(Path::new("/repo/.git"), true));
+        let gitignore = Gitignore::empty();
+        let root = Path::new("/repo");
+        assert!(App::should_skip_path(
+            Path::new("/repo/.git"),
+            true,
+            root,
+            &gitignore
+        ));
     }
 
     #[test]
     fn does_not_skip_a_file_that_is_not_a_directory_named_dot_git() {
-        let app = app_with("/repo", "");
-        assert!(!app.should_skip_path(Path::new("/repo/.git"), false));
+        let gitignore = Gitignore::empty();
+        let root = Path::new("/repo");
+        assert!(!App::should_skip_path(
+            Path::new("/repo/.git"),
+            false,
+            root,
+            &gitignore
+        ));
     }
 
     #[test]
     fn skips_files_matched_by_gitignore() {
-        let app = app_with("/repo", "*.log");
-        assert!(app.should_skip_path(Path::new("/repo/debug.log"), false));
+        let gitignore = Gitignore::parse("*.log");
+        let root = Path::new("/repo");
+        assert!(App::should_skip_path(
+            Path::new("/repo/debug.log"),
+            false,
+            root,
+            &gitignore
+        ));
     }
 
     #[test]
     fn does_not_skip_files_not_matched_by_gitignore() {
-        let app = app_with("/repo", "*.log");
-        assert!(!app.should_skip_path(Path::new("/repo/main.rs"), false));
+        let gitignore = Gitignore::parse("*.log");
+        let root = Path::new("/repo");
+        assert!(!App::should_skip_path(
+            Path::new("/repo/main.rs"),
+            false,
+            root,
+            &gitignore
+        ));
     }
 
     #[test]
     fn matches_relative_to_root_not_the_full_path() {
-        let app = app_with("/repo", "/build");
-        assert!(app.should_skip_path(Path::new("/repo/build"), true));
-        assert!(!app.should_skip_path(Path::new("/repo/sub/build"), true));
+        let gitignore = Gitignore::parse("/build");
+        let root = Path::new("/repo");
+        assert!(App::should_skip_path(
+            Path::new("/repo/build"),
+            true,
+            root,
+            &gitignore
+        ));
+        assert!(!App::should_skip_path(
+            Path::new("/repo/sub/build"),
+            true,
+            root,
+            &gitignore
+        ));
     }
 }

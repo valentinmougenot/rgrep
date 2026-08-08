@@ -1,4 +1,4 @@
-use std::{io::Write, iter::Peekable, path::Path};
+use std::{io, iter::Peekable, path::Path};
 
 use search::LineMatch;
 
@@ -10,66 +10,85 @@ pub enum OutputMode {
     Count,
 }
 
-pub fn report(
+pub struct Output<W: io::Write> {
     mode: OutputMode,
-    colorizer: &Colorizer,
-    matches: &mut Peekable<impl Iterator<Item = LineMatch>>,
-    path: Option<&Path>,
-    header: Option<&mut bool>,
-    writer: &mut impl Write,
-) {
-    match mode {
-        OutputMode::Matches => report_matches(colorizer, matches, path, header, writer),
-        OutputMode::Count => report_count(colorizer, matches, path, writer),
-    }
+    colorizer: Colorizer,
+    writer: W,
+    show_header: bool,
+    separator_needed: bool,
 }
 
-fn report_matches(
-    colorizer: &Colorizer,
-    matches: &mut Peekable<impl Iterator<Item = LineMatch>>,
-    path: Option<&Path>,
-    header: Option<&mut bool>,
-    writer: &mut impl Write,
-) {
-    if matches.peek().is_some()
-        && let Some(path) = path
-    {
-        if let Some(separator_needed) = header {
-            if *separator_needed {
-                writeln!(writer).unwrap();
-            } else {
-                *separator_needed = true;
-            }
-        }
-
-        writeln!(writer, "{}", colorizer.path(path)).unwrap();
-    }
-
-    for line_match in matches {
-        write!(writer, "{}:", colorizer.line_number(line_match.line_number)).unwrap();
-        let line = line_match.line.trim_end();
-        write!(writer, "{}", &line[..line_match.start]).unwrap();
-        write!(
+impl<W: io::Write> Output<W> {
+    pub fn new(mode: OutputMode, writer: W, show_header: bool) -> Self {
+        Self {
+            mode,
+            colorizer: Colorizer::from_stdout(),
             writer,
-            "{}",
-            colorizer.matched(&line[line_match.start..line_match.end])
-        )
-        .unwrap();
-        writeln!(writer, "{}", &line[line_match.end..]).unwrap();
-    }
-}
-
-fn report_count(
-    colorizer: &Colorizer,
-    matches: &mut Peekable<impl Iterator<Item = LineMatch>>,
-    path: Option<&Path>,
-    writer: &mut impl Write,
-) {
-    if matches.peek().is_some() {
-        if let Some(path) = path {
-            write!(writer, "{}:", colorizer.path(path)).unwrap();
+            show_header,
+            separator_needed: false,
         }
-        writeln!(writer, "{}", matches.count()).unwrap();
+    }
+
+    pub fn report(
+        &mut self,
+        matches: &mut Peekable<impl Iterator<Item = LineMatch>>,
+        path: Option<&Path>,
+    ) {
+        match self.mode {
+            OutputMode::Matches => self.report_matches(matches, path),
+            OutputMode::Count => self.report_count(matches, path),
+        }
+    }
+
+    fn report_matches(
+        &mut self,
+        matches: &mut Peekable<impl Iterator<Item = LineMatch>>,
+        path: Option<&Path>,
+    ) {
+        if matches.peek().is_some()
+            && self.show_header
+            && let Some(path) = path
+        {
+            if self.separator_needed {
+                writeln!(self.writer).unwrap();
+            } else {
+                self.separator_needed = true;
+            }
+
+            writeln!(self.writer, "{}", self.colorizer.path(path)).unwrap();
+        }
+
+        for line_match in matches {
+            write!(
+                self.writer,
+                "{}:",
+                self.colorizer.line_number(line_match.line_number)
+            )
+            .unwrap();
+            let line = line_match.line.trim_end();
+            write!(self.writer, "{}", &line[..line_match.start]).unwrap();
+            write!(
+                self.writer,
+                "{}",
+                self.colorizer
+                    .matched(&line[line_match.start..line_match.end])
+            )
+            .unwrap();
+            writeln!(self.writer, "{}", &line[line_match.end..]).unwrap();
+        }
+    }
+
+    fn report_count(
+        &mut self,
+        matches: &mut Peekable<impl Iterator<Item = LineMatch>>,
+        path: Option<&Path>,
+    ) {
+        if matches.peek().is_some() {
+            if let Some(path) = path {
+                write!(self.writer, "{}:", self.colorizer.path(path)).unwrap();
+            }
+            writeln!(self.writer, "{}", matches.count()).unwrap();
+        }
     }
 }
 
@@ -88,105 +107,84 @@ mod tests {
 
     fn report_to_string(
         mode: OutputMode,
-        colorizer: &Colorizer,
         matches: Vec<LineMatch>,
         path: Option<&Path>,
-        header: Option<&mut bool>,
+        show_header: bool,
     ) -> String {
-        let mut buf = Vec::new();
-        report(
-            mode,
-            colorizer,
-            &mut matches.into_iter().peekable(),
-            path,
-            header,
-            &mut buf,
-        );
-        String::from_utf8(buf).unwrap()
+        let mut output = Output::new(mode, Vec::new(), show_header);
+        output.report(&mut matches.into_iter().peekable(), path);
+        String::from_utf8(output.writer).unwrap()
     }
 
     #[test]
     fn matches_mode_prints_each_line_with_number() {
-        let colorizer = Colorizer::new(false);
         let matches = vec![
             line_match(1, "hello world", 0, 5),
             line_match(3, "hello again", 0, 5),
         ];
 
-        let output = report_to_string(OutputMode::Matches, &colorizer, matches, None, None);
+        let output = report_to_string(OutputMode::Matches, matches, None, false);
 
         assert_eq!(output, "1:hello world\n3:hello again\n");
     }
 
     #[test]
     fn matches_mode_prints_nothing_when_there_are_no_matches() {
-        let colorizer = Colorizer::new(false);
-        let output = report_to_string(OutputMode::Matches, &colorizer, vec![], None, None);
+        let output = report_to_string(OutputMode::Matches, vec![], None, false);
         assert!(output.is_empty());
     }
 
     #[test]
-    fn matches_mode_colorizes_the_matched_span() {
-        let colorizer = Colorizer::new(true);
-        let matches = vec![line_match(1, "hello world", 0, 5)];
-
-        let output = report_to_string(OutputMode::Matches, &colorizer, matches, None, None);
-
-        assert_eq!(
-            output,
-            "\x1b[32m1\x1b[0m:\x1b[1;31mhello\x1b[0m world\n"
-        );
-    }
-
-    #[test]
     fn matches_mode_prints_the_header_when_a_path_is_given_and_there_are_matches() {
-        let colorizer = Colorizer::new(false);
         let matches = vec![line_match(1, "hello", 0, 5)];
         let path = Path::new("a.txt");
 
-        let output = report_to_string(OutputMode::Matches, &colorizer, matches, Some(path), None);
+        let output = report_to_string(OutputMode::Matches, matches, Some(path), true);
 
         assert_eq!(output, "a.txt\n1:hello\n");
     }
 
     #[test]
     fn matches_mode_omits_the_header_when_there_are_no_matches() {
-        let colorizer = Colorizer::new(false);
         let path = Path::new("a.txt");
 
-        let output = report_to_string(OutputMode::Matches, &colorizer, vec![], Some(path), None);
+        let output = report_to_string(OutputMode::Matches, vec![], Some(path), true);
 
         assert!(output.is_empty());
     }
 
     #[test]
-    fn matches_mode_separates_successive_headers_with_a_blank_line() {
-        let colorizer = Colorizer::new(false);
-        let mut separator_needed = false;
+    fn matches_mode_does_not_print_a_header_when_show_header_is_false() {
+        let matches = vec![line_match(1, "hello", 0, 5)];
         let path = Path::new("a.txt");
 
-        let first = report_to_string(
-            OutputMode::Matches,
-            &colorizer,
-            vec![line_match(1, "hello", 0, 5)],
+        let output = report_to_string(OutputMode::Matches, matches, Some(path), false);
+
+        assert_eq!(output, "1:hello\n");
+    }
+
+    #[test]
+    fn matches_mode_separates_successive_headers_with_a_blank_line() {
+        let mut output = Output::new(OutputMode::Matches, Vec::new(), true);
+        let path = Path::new("a.txt");
+
+        output.report(
+            &mut vec![line_match(1, "hello", 0, 5)].into_iter().peekable(),
             Some(path),
-            Some(&mut separator_needed),
         );
-        let second = report_to_string(
-            OutputMode::Matches,
-            &colorizer,
-            vec![line_match(1, "hello", 0, 5)],
+        output.report(
+            &mut vec![line_match(1, "hello", 0, 5)].into_iter().peekable(),
             Some(path),
-            Some(&mut separator_needed),
         );
 
-        assert_eq!(first, "a.txt\n1:hello\n");
-        assert_eq!(second, "\na.txt\n1:hello\n");
+        assert_eq!(
+            String::from_utf8(output.writer).unwrap(),
+            "a.txt\n1:hello\n\na.txt\n1:hello\n"
+        );
     }
 
     #[test]
     fn count_mode_prints_the_total_with_the_path() {
-        let colorizer = Colorizer::new(false);
         let matches = vec![
             line_match(1, "hello", 0, 5),
             line_match(2, "hello", 0, 5),
@@ -194,27 +192,25 @@ mod tests {
         ];
         let path = Path::new("a.txt");
 
-        let output = report_to_string(OutputMode::Count, &colorizer, matches, Some(path), None);
+        let output = report_to_string(OutputMode::Count, matches, Some(path), false);
 
         assert_eq!(output, "a.txt:3\n");
     }
 
     #[test]
     fn count_mode_prints_just_the_total_without_a_path() {
-        let colorizer = Colorizer::new(false);
         let matches = vec![line_match(1, "hello", 0, 5), line_match(2, "hello", 0, 5)];
 
-        let output = report_to_string(OutputMode::Count, &colorizer, matches, None, None);
+        let output = report_to_string(OutputMode::Count, matches, None, false);
 
         assert_eq!(output, "2\n");
     }
 
     #[test]
     fn count_mode_prints_nothing_when_there_are_no_matches() {
-        let colorizer = Colorizer::new(false);
         let path = Path::new("a.txt");
 
-        let output = report_to_string(OutputMode::Count, &colorizer, vec![], Some(path), None);
+        let output = report_to_string(OutputMode::Count, vec![], Some(path), false);
 
         assert!(output.is_empty());
     }

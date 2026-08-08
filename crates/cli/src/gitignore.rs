@@ -1,5 +1,6 @@
 use std::{os::unix::ffi::OsStrExt, path::Path};
 
+#[derive(Clone)]
 pub struct Gitignore {
     patterns: Vec<Pattern>,
 }
@@ -71,6 +72,7 @@ impl Gitignore {
     }
 }
 
+#[derive(Clone)]
 struct Pattern {
     negative: bool,
     anchored: bool,

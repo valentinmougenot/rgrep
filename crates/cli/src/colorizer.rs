@@ -14,11 +14,6 @@ impl Colorizer {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn new(enabled: bool) -> Self {
-        Self { enabled }
-    }
-
     pub fn path(&self, text: &Path) -> String {
         self.wrap(&text.display().to_string(), "35")
     }
