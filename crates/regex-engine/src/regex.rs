@@ -142,4 +142,40 @@ mod tests {
         assert!(re.find("xab").is_none());
         assert!(re.find("abx").is_none());
     }
+
+    #[test]
+    fn regex_new_is_case_sensitive_by_default() {
+        let re = Regex::new("abc").unwrap();
+        assert!(!re.is_match("ABC"));
+    }
+
+    #[test]
+    fn builder_defaults_to_case_sensitive() {
+        let re = RegexBuilder::new("abc".to_string()).build().unwrap();
+        assert!(!re.is_match("ABC"));
+    }
+
+    #[test]
+    fn builder_case_insensitive_true_ignores_case() {
+        let re = RegexBuilder::new("abc".to_string())
+            .case_insensitive(true)
+            .build()
+            .unwrap();
+        assert!(re.is_match("ABC"));
+        assert!(re.is_match("aBc"));
+    }
+
+    #[test]
+    fn builder_case_insensitive_false_is_explicit_case_sensitive() {
+        let re = RegexBuilder::new("abc".to_string())
+            .case_insensitive(false)
+            .build()
+            .unwrap();
+        assert!(!re.is_match("ABC"));
+    }
+
+    #[test]
+    fn builder_propagates_parse_errors() {
+        assert!(RegexBuilder::new("(".to_string()).build().is_err());
+    }
 }

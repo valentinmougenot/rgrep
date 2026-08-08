@@ -228,4 +228,34 @@ mod tests {
     fn find_prefers_the_leftmost_starting_match() {
         assert_eq!(find(&compile("a"), "xax a", false), Some((1, 2)));
     }
+
+    #[test]
+    fn case_insensitive_matches_uppercase_pattern_against_lowercase_text() {
+        assert!(is_match(&compile("ABC"), "abc", true));
+    }
+
+    #[test]
+    fn case_insensitive_matches_lowercase_pattern_against_uppercase_text() {
+        assert!(is_match(&compile("abc"), "ABC", true));
+    }
+
+    #[test]
+    fn case_insensitive_matches_mixed_case() {
+        assert!(is_match(&compile("aBc"), "AbC", true));
+    }
+
+    #[test]
+    fn case_sensitive_by_default_rejects_different_case() {
+        assert!(!is_match(&compile("abc"), "ABC", false));
+    }
+
+    #[test]
+    fn case_insensitive_find_returns_the_span_in_the_original_text() {
+        assert_eq!(find(&compile("ab"), "xxABxx", true), Some((2, 4)));
+    }
+
+    #[test]
+    fn case_insensitive_respects_char_ranges() {
+        assert!(is_match(&compile("[a-z]+"), "ABC", true));
+    }
 }
