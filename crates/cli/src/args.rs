@@ -58,3 +58,53 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
         Ok(Args { pattern, path })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_vec(v: Vec<&str>) -> Result<Args, ArgsError> {
+        parse(&mut v.into_iter().map(String::from))
+    }
+
+    #[test]
+    fn pattern_only() {
+        let args = parse_vec(vec!["ab"]).unwrap();
+        assert_eq!(args.pattern, "ab");
+        assert_eq!(args.path, None);
+    }
+
+    #[test]
+    fn pattern_and_path() {
+        let args = parse_vec(vec!["ab", "file.txt"]).unwrap();
+        assert_eq!(args.pattern, "ab");
+        assert_eq!(args.path, Some(PathBuf::from("file.txt")));
+    }
+
+    #[test]
+    fn no_args_is_missing_pattern() {
+        let err = parse_vec(vec![]).unwrap_err();
+        assert_eq!(err.kind, ArgsErrorKind::MissingPattern);
+    }
+
+    #[test]
+    fn pattern_starting_with_dash_is_unexpected() {
+        let err = parse_vec(vec!["-ab"]).unwrap_err();
+        assert_eq!(err.kind, ArgsErrorKind::UnexpectedArgument("-ab".into()));
+    }
+
+    #[test]
+    fn path_starting_with_dash_is_unexpected() {
+        let err = parse_vec(vec!["ab", "-x"]).unwrap_err();
+        assert_eq!(err.kind, ArgsErrorKind::UnexpectedArgument("-x".into()));
+    }
+
+    #[test]
+    fn extra_positional_argument_is_unexpected() {
+        let err = parse_vec(vec!["ab", "file.txt", "extra"]).unwrap_err();
+        assert_eq!(
+            err.kind,
+            ArgsErrorKind::UnexpectedArgument("extra".into())
+        );
+    }
+}
