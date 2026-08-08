@@ -239,4 +239,32 @@ mod tests {
 
         assert!(output.is_empty());
     }
+
+    #[test]
+    fn files_mode_prints_the_path_when_there_are_matches() {
+        let matches = vec![line_match(1, "hello", 0, 5), line_match(2, "hello", 0, 5)];
+        let path = Path::new("a.txt");
+
+        let output = report_to_string(OutputMode::Files, matches, Some(path), false);
+
+        assert_eq!(output, "a.txt\n");
+    }
+
+    #[test]
+    fn files_mode_prints_nothing_when_there_are_no_matches() {
+        let path = Path::new("a.txt");
+
+        let output = report_to_string(OutputMode::Files, vec![], Some(path), false);
+
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn files_mode_prints_stdin_placeholder_when_there_is_no_path() {
+        let matches = vec![line_match(1, "hello", 0, 5)];
+
+        let output = report_to_string(OutputMode::Files, matches, None, false);
+
+        assert_eq!(output, "<stdin>\n");
+    }
 }
