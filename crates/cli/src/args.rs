@@ -8,6 +8,7 @@ pub struct Args {
     pub path: Option<PathBuf>,
     pub output_mode: OutputMode,
     pub case_insensitive: bool,
+    pub whole_word: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,6 +35,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
     let mut positionals = Vec::new();
     let mut output_mode = OutputMode::Matches;
     let mut case_insensitive = false;
+    let mut whole_word = false;
 
     for arg in args {
         if let Some(long) = arg.strip_prefix("--") {
@@ -41,6 +43,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                 "count" => output_mode = OutputMode::Count,
                 "files-with-matches" => output_mode = OutputMode::Files,
                 "ignore-case" => case_insensitive = true,
+                "word-regexp" => whole_word = true,
                 _ => {
                     return Err(ArgsError {
                         kind: ArgsErrorKind::UnexpectedArgument(arg),
@@ -53,6 +56,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                     'c' => output_mode = OutputMode::Count,
                     'l' => output_mode = OutputMode::Files,
                     'i' => case_insensitive = true,
+                    'w' => whole_word = true,
                     _ => {
                         return Err(ArgsError {
                             kind: ArgsErrorKind::UnexpectedArgument(arg.clone()),
@@ -83,6 +87,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
         path,
         output_mode,
         case_insensitive,
+        whole_word,
     })
 }
 

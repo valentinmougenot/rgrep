@@ -28,6 +28,7 @@ impl App {
         let args = parse(&mut std::env::args().skip(1))?;
         let regex = RegexBuilder::new(args.pattern.clone())
             .case_insensitive(args.case_insensitive)
+            .whole_word(args.whole_word)
             .build()?;
 
         let mut root = None;
