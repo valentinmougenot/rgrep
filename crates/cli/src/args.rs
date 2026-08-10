@@ -254,4 +254,29 @@ mod tests {
         assert!(args.whole_word);
         assert!(args.case_insensitive);
     }
+
+    #[test]
+    fn default_invert_match_is_false() {
+        let args = parse_vec(vec!["ab"]).unwrap();
+        assert!(!args.invert_match);
+    }
+
+    #[test]
+    fn short_invert_match_flag_sets_invert_match() {
+        let args = parse_vec(vec!["-v", "ab"]).unwrap();
+        assert!(args.invert_match);
+    }
+
+    #[test]
+    fn long_invert_match_flag_sets_invert_match() {
+        let args = parse_vec(vec!["--invert-match", "ab"]).unwrap();
+        assert!(args.invert_match);
+    }
+
+    #[test]
+    fn invert_match_can_be_bundled_with_other_short_flags() {
+        let args = parse_vec(vec!["-vi", "ab"]).unwrap();
+        assert!(args.invert_match);
+        assert!(args.case_insensitive);
+    }
 }
