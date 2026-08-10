@@ -229,4 +229,103 @@ mod tests {
         let gi = Gitignore::parse("*.log");
         assert!(!gi.is_ignored(Path::new("readme.md"), false));
     }
+
+    #[test]
+    fn verdict_is_none_when_no_pattern_matches() {
+        let gi = Gitignore::parse("*.log");
+        assert_eq!(gi.verdict(Path::new("readme.md"), false), None);
+    }
+
+    #[test]
+    fn verdict_is_some_true_when_a_pattern_ignores_the_path() {
+        let gi = Gitignore::parse("*.log");
+        assert_eq!(gi.verdict(Path::new("a.log"), false), Some(true));
+    }
+
+    #[test]
+    fn verdict_is_some_false_when_a_negation_matches_last() {
+        let gi = Gitignore::parse("*.log\n!important.log\n");
+        assert_eq!(gi.verdict(Path::new("important.log"), false), Some(false));
+    }
+
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(name: &str) -> Self {
+            let path = std::env::temp_dir()
+                .join(format!("rgrep_gitignore_test_{name}_{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&path);
+            std::fs::create_dir_all(&path).unwrap();
+            Self(path)
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+
+        fn write_gitignore(&self, relative_dir: &str, contents: &str) {
+            let dir = self.0.join(relative_dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join(".gitignore"), contents).unwrap();
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn cache_returns_false_when_there_is_no_gitignore_anywhere() {
+        let dir = TempDir::new("no_gitignore");
+        let cache = GitignoreCache::new(dir.path().to_path_buf());
+
+        assert!(!cache.is_ignored(Path::new("readme.md"), false));
+    }
+
+    #[test]
+    fn cache_loads_the_root_gitignore_from_disk() {
+        let dir = TempDir::new("root_only");
+        dir.write_gitignore("", "*.log");
+        let cache = GitignoreCache::new(dir.path().to_path_buf());
+
+        assert!(cache.is_ignored(Path::new("a.log"), false));
+        assert!(!cache.is_ignored(Path::new("a.txt"), false));
+    }
+
+    #[test]
+    fn cache_combines_root_and_nested_gitignore_in_root_to_leaf_order() {
+        let dir = TempDir::new("nested_negation");
+        dir.write_gitignore("", "*.log");
+        dir.write_gitignore("sub", "!important.log");
+        let cache = GitignoreCache::new(dir.path().to_path_buf());
+
+        assert!(cache.is_ignored(Path::new("a.log"), false));
+        assert!(cache.is_ignored(Path::new("sub/other.log"), false));
+        assert!(!cache.is_ignored(Path::new("sub/important.log"), false));
+    }
+
+    #[test]
+    fn cache_scopes_a_nested_gitignore_to_its_own_directory() {
+        let dir = TempDir::new("nested_scope");
+        dir.write_gitignore("sub", "*.tmp");
+        let cache = GitignoreCache::new(dir.path().to_path_buf());
+
+        assert!(cache.is_ignored(Path::new("sub/cache.tmp"), false));
+        assert!(!cache.is_ignored(Path::new("cache.tmp"), false));
+    }
+
+    #[test]
+    fn cache_reuses_a_loaded_gitignore_instead_of_rereading_it() {
+        let dir = TempDir::new("reuses_cache");
+        dir.write_gitignore("", "*.log");
+        let cache = GitignoreCache::new(dir.path().to_path_buf());
+
+        assert!(cache.is_ignored(Path::new("a.log"), false));
+
+        std::fs::remove_file(dir.path().join(".gitignore")).unwrap();
+
+        assert!(cache.is_ignored(Path::new("a.log"), false));
+    }
 }

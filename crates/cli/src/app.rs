@@ -228,4 +228,45 @@ mod tests {
             &gitignore
         ));
     }
+
+    #[test]
+    fn a_nested_gitignore_can_re_include_a_file_ignored_by_a_parent() {
+        let dir = TempDir::new("nested_negation");
+        dir.write_gitignore("", "*.log");
+        dir.write_gitignore("sub", "!important.log");
+        let gitignore = GitignoreCache::new(dir.path().to_path_buf());
+
+        assert!(App::should_skip_path(
+            &dir.path().join("a.log"),
+            false,
+            dir.path(),
+            &gitignore
+        ));
+        assert!(!App::should_skip_path(
+            &dir.path().join("sub/important.log"),
+            false,
+            dir.path(),
+            &gitignore
+        ));
+    }
+
+    #[test]
+    fn a_nested_gitignore_scopes_its_own_ignores_to_its_directory() {
+        let dir = TempDir::new("nested_scope");
+        dir.write_gitignore("sub", "*.tmp");
+        let gitignore = GitignoreCache::new(dir.path().to_path_buf());
+
+        assert!(App::should_skip_path(
+            &dir.path().join("sub/cache.tmp"),
+            false,
+            dir.path(),
+            &gitignore
+        ));
+        assert!(!App::should_skip_path(
+            &dir.path().join("cache.tmp"),
+            false,
+            dir.path(),
+            &gitignore
+        ));
+    }
 }
