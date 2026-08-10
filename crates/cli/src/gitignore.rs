@@ -1,4 +1,9 @@
-use std::{os::unix::ffi::OsStrExt, path::Path};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    os::unix::ffi::OsStrExt,
+    path::{Path, PathBuf},
+};
 
 #[derive(Clone)]
 pub struct Gitignore {
@@ -55,8 +60,8 @@ impl Gitignore {
         Self { patterns }
     }
 
-    pub fn is_ignored(&self, relative_path: &Path, is_dir: bool) -> bool {
-        let mut ignored = false;
+    pub fn verdict(&self, relative_path: &Path, is_dir: bool) -> Option<bool> {
+        let mut ignored = None;
 
         for pattern in &self.patterns {
             if pattern.dir_only && !is_dir {
@@ -64,11 +69,15 @@ impl Gitignore {
             }
 
             if pattern.matches(relative_path) {
-                ignored = !pattern.negative;
+                ignored = Some(!pattern.negative);
             }
         }
 
         ignored
+    }
+
+    pub fn is_ignored(&self, relative_path: &Path, is_dir: bool) -> bool {
+        self.verdict(relative_path, is_dir).unwrap_or(false)
     }
 }
 
@@ -105,6 +114,60 @@ fn glob_match(pattern: &[u8], text: &[u8]) -> bool {
         }
         Some(c) => text.first().is_some_and(|t| t == c) && glob_match(&pattern[1..], &text[1..]),
         None => text.is_empty(),
+    }
+}
+
+#[derive(Clone)]
+pub struct GitignoreCache {
+    root: PathBuf,
+    cache: RefCell<HashMap<PathBuf, Gitignore>>,
+}
+
+impl GitignoreCache {
+    pub fn new(root: PathBuf) -> Self {
+        Self {
+            root,
+            cache: RefCell::new(HashMap::new()),
+        }
+    }
+
+    pub fn is_ignored(&self, relative_path: &Path, is_dir: bool) -> bool {
+        let mut ancestors: Vec<&Path> = relative_path
+            .parent()
+            .into_iter()
+            .flat_map(Path::ancestors)
+            .collect();
+
+        ancestors.reverse();
+
+        let mut ignored = false;
+        for ancestor in ancestors {
+            self.ensure_loaded(ancestor);
+
+            let cache = self.cache.borrow();
+            let gitignore = cache.get(ancestor).unwrap();
+            let relative_to_level = relative_path
+                .strip_prefix(ancestor)
+                .unwrap_or(relative_path);
+            ignored = gitignore
+                .verdict(relative_to_level, is_dir)
+                .unwrap_or(ignored);
+        }
+
+        ignored
+    }
+
+    fn ensure_loaded(&self, dir: &Path) {
+        if self.cache.borrow().contains_key(dir) {
+            return;
+        }
+
+        let gitignore = match std::fs::read_to_string(self.root.join(dir).join(".gitignore")) {
+            Ok(contents) => Gitignore::parse(&contents),
+            Err(_) => Gitignore::empty(),
+        };
+
+        self.cache.borrow_mut().insert(dir.to_path_buf(), gitignore);
     }
 }
 

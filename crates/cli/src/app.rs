@@ -2,7 +2,7 @@ use std::{
     ffi::OsStr,
     fs::File,
     io::{self, BufReader},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use regex_engine::{Regex, RegexBuilder};
@@ -11,7 +11,7 @@ use search::search;
 use crate::{
     args::{Args, parse},
     error::{AppError, AppResult},
-    gitignore::Gitignore,
+    gitignore::GitignoreCache,
     output::{Output, OutputMode},
     walk::walk,
 };
@@ -19,7 +19,7 @@ use crate::{
 pub struct App {
     args: Args,
     regex: Regex,
-    gitignore: Gitignore,
+    gitignore: GitignoreCache,
     output: Output<io::Stdout>,
 }
 
@@ -32,19 +32,12 @@ impl App {
             .build()?;
 
         let mut root = None;
-        let gitignore = if let Some(ref path) = args.path
+        if let Some(ref path) = args.path
             && path.is_dir()
         {
             root = Some(path.clone());
-            match std::fs::read_to_string(path.join(".gitignore")) {
-                Ok(contents) => Gitignore::parse(&contents),
-                Err(e) if e.kind() == io::ErrorKind::NotFound => Gitignore::empty(),
-                Err(e) => return Err(e.into()),
-            }
-        } else {
-            Gitignore::empty()
-        };
-
+        }
+        let gitignore = GitignoreCache::new(root.clone().unwrap_or(PathBuf::new()));
         let output = Output::new(
             args.output_mode,
             io::stdout(),
@@ -113,7 +106,12 @@ impl App {
         self.output.report(matches, None);
     }
 
-    fn should_skip_path(path: &Path, is_dir: bool, root: &Path, gitignore: &Gitignore) -> bool {
+    fn should_skip_path(
+        path: &Path,
+        is_dir: bool,
+        root: &Path,
+        gitignore: &GitignoreCache,
+    ) -> bool {
         if is_dir && path.file_name() == Some(OsStr::new(".git")) {
             return true;
         }
@@ -126,69 +124,107 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(name: &str) -> Self {
+            let path = std::env::temp_dir()
+                .join(format!("rgrep_app_test_{name}_{}", std::process::id()));
+            let _ = fs::remove_dir_all(&path);
+            fs::create_dir_all(&path).unwrap();
+            Self(path)
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+
+        fn write_gitignore(&self, relative_dir: &str, contents: &str) {
+            let dir = self.0.join(relative_dir);
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join(".gitignore"), contents).unwrap();
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
 
     #[test]
     fn skips_the_git_directory_regardless_of_gitignore_content() {
-        let gitignore = Gitignore::empty();
-        let root = Path::new("/repo");
+        let dir = TempDir::new("skips_git_dir");
+        let gitignore = GitignoreCache::new(dir.path().to_path_buf());
+
         assert!(App::should_skip_path(
-            Path::new("/repo/.git"),
+            &dir.path().join(".git"),
             true,
-            root,
+            dir.path(),
             &gitignore
         ));
     }
 
     #[test]
     fn does_not_skip_a_file_that_is_not_a_directory_named_dot_git() {
-        let gitignore = Gitignore::empty();
-        let root = Path::new("/repo");
+        let dir = TempDir::new("does_not_skip_dot_git_file");
+        let gitignore = GitignoreCache::new(dir.path().to_path_buf());
+
         assert!(!App::should_skip_path(
-            Path::new("/repo/.git"),
+            &dir.path().join(".git"),
             false,
-            root,
+            dir.path(),
             &gitignore
         ));
     }
 
     #[test]
     fn skips_files_matched_by_gitignore() {
-        let gitignore = Gitignore::parse("*.log");
-        let root = Path::new("/repo");
+        let dir = TempDir::new("skips_matched");
+        dir.write_gitignore("", "*.log");
+        let gitignore = GitignoreCache::new(dir.path().to_path_buf());
+
         assert!(App::should_skip_path(
-            Path::new("/repo/debug.log"),
+            &dir.path().join("debug.log"),
             false,
-            root,
+            dir.path(),
             &gitignore
         ));
     }
 
     #[test]
     fn does_not_skip_files_not_matched_by_gitignore() {
-        let gitignore = Gitignore::parse("*.log");
-        let root = Path::new("/repo");
+        let dir = TempDir::new("does_not_skip_unmatched");
+        dir.write_gitignore("", "*.log");
+        let gitignore = GitignoreCache::new(dir.path().to_path_buf());
+
         assert!(!App::should_skip_path(
-            Path::new("/repo/main.rs"),
+            &dir.path().join("main.rs"),
             false,
-            root,
+            dir.path(),
             &gitignore
         ));
     }
 
     #[test]
     fn matches_relative_to_root_not_the_full_path() {
-        let gitignore = Gitignore::parse("/build");
-        let root = Path::new("/repo");
+        let dir = TempDir::new("relative_to_root");
+        dir.write_gitignore("", "/build");
+        fs::create_dir_all(dir.path().join("sub")).unwrap();
+        let gitignore = GitignoreCache::new(dir.path().to_path_buf());
+
         assert!(App::should_skip_path(
-            Path::new("/repo/build"),
+            &dir.path().join("build"),
             true,
-            root,
+            dir.path(),
             &gitignore
         ));
         assert!(!App::should_skip_path(
-            Path::new("/repo/sub/build"),
+            &dir.path().join("sub/build"),
             true,
-            root,
+            dir.path(),
             &gitignore
         ));
     }
