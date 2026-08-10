@@ -9,6 +9,7 @@ pub struct Args {
     pub output_mode: OutputMode,
     pub case_insensitive: bool,
     pub whole_word: bool,
+    pub invert_match: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +37,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
     let mut output_mode = OutputMode::Matches;
     let mut case_insensitive = false;
     let mut whole_word = false;
+    let mut invert_match = false;
 
     for arg in args {
         if let Some(long) = arg.strip_prefix("--") {
@@ -44,6 +46,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                 "files-with-matches" => output_mode = OutputMode::Files,
                 "ignore-case" => case_insensitive = true,
                 "word-regexp" => whole_word = true,
+                "invert-match" => invert_match = true,
                 _ => {
                     return Err(ArgsError {
                         kind: ArgsErrorKind::UnexpectedArgument(arg),
@@ -57,6 +60,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                     'l' => output_mode = OutputMode::Files,
                     'i' => case_insensitive = true,
                     'w' => whole_word = true,
+                    'v' => invert_match = true,
                     _ => {
                         return Err(ArgsError {
                             kind: ArgsErrorKind::UnexpectedArgument(arg.clone()),
@@ -88,6 +92,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
         output_mode,
         case_insensitive,
         whole_word,
+        invert_match,
     })
 }
 

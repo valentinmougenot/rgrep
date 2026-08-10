@@ -66,22 +66,26 @@ impl<W: io::Write> Output<W> {
         }
 
         for line_match in matches {
-            write!(
-                self.writer,
-                "{}:",
-                self.colorizer.line_number(line_match.line_number)
-            )
-            .unwrap();
-            let line = line_match.line.trim_end();
-            write!(self.writer, "{}", &line[..line_match.start]).unwrap();
-            write!(
-                self.writer,
-                "{}",
-                self.colorizer
-                    .matched(&line[line_match.start..line_match.end])
-            )
-            .unwrap();
-            writeln!(self.writer, "{}", &line[line_match.end..]).unwrap();
+            if let Some(std::ops::Range { start, end }) = line_match.match_span {
+                write!(
+                    self.writer,
+                    "{}:",
+                    self.colorizer.line_number(line_match.line_number)
+                )
+                .unwrap();
+                let line = line_match.line.trim_end();
+                write!(self.writer, "{}", &line[..start]).unwrap();
+                write!(self.writer, "{}", self.colorizer.matched(&line[start..end])).unwrap();
+                writeln!(self.writer, "{}", &line[end..]).unwrap();
+            } else {
+                writeln!(
+                    self.writer,
+                    "{}:{}",
+                    self.colorizer.line_number(line_match.line_number),
+                    line_match.line.trim_end()
+                )
+                .unwrap();
+            }
         }
     }
 
@@ -125,8 +129,15 @@ mod tests {
         LineMatch {
             line_number,
             line: line.to_string(),
-            start,
-            end,
+            match_span: Some(start..end),
+        }
+    }
+
+    fn inverted_line_match(line_number: usize, line: &str) -> LineMatch {
+        LineMatch {
+            line_number,
+            line: line.to_string(),
+            match_span: None,
         }
     }
 
@@ -186,6 +197,15 @@ mod tests {
         let output = report_to_string(OutputMode::Matches, matches, Some(path), false);
 
         assert_eq!(output, "1:hello\n");
+    }
+
+    #[test]
+    fn matches_mode_prints_the_whole_line_without_highlight_when_match_span_is_none() {
+        let matches = vec![inverted_line_match(1, "no match here")];
+
+        let output = report_to_string(OutputMode::Matches, matches, None, false);
+
+        assert_eq!(output, "1:no match here\n");
     }
 
     #[test]

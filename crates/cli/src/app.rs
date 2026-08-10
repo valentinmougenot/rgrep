@@ -97,7 +97,7 @@ impl App {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
 
-        let mut matches = search(&self.regex, reader).peekable();
+        let mut matches = search(&self.regex, reader, self.args.invert_match).peekable();
 
         self.output.report(&mut matches, Some(path));
 
@@ -108,7 +108,7 @@ impl App {
         let stdin = io::stdin().lock();
         let reader = BufReader::new(stdin);
 
-        let matches = &mut search(&self.regex, reader).peekable();
+        let matches = &mut search(&self.regex, reader, self.args.invert_match).peekable();
 
         self.output.report(matches, None);
     }
