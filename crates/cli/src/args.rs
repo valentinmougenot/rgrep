@@ -224,4 +224,29 @@ mod tests {
         assert!(args.case_insensitive);
         assert_eq!(args.output_mode, OutputMode::Count);
     }
+
+    #[test]
+    fn default_whole_word_is_false() {
+        let args = parse_vec(vec!["ab"]).unwrap();
+        assert!(!args.whole_word);
+    }
+
+    #[test]
+    fn short_word_regexp_flag_sets_whole_word() {
+        let args = parse_vec(vec!["-w", "ab"]).unwrap();
+        assert!(args.whole_word);
+    }
+
+    #[test]
+    fn long_word_regexp_flag_sets_whole_word() {
+        let args = parse_vec(vec!["--word-regexp", "ab"]).unwrap();
+        assert!(args.whole_word);
+    }
+
+    #[test]
+    fn word_regexp_can_be_bundled_with_other_short_flags() {
+        let args = parse_vec(vec!["-wi", "ab"]).unwrap();
+        assert!(args.whole_word);
+        assert!(args.case_insensitive);
+    }
 }

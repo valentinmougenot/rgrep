@@ -311,4 +311,41 @@ mod tests {
     fn case_insensitive_respects_char_ranges() {
         assert!(is_match(&compile("[a-z]+"), "ABC", true));
     }
+
+    #[test]
+    fn word_boundary_matches_standalone_word() {
+        assert!(is_match(&compile(r"\bcat\b"), "a cat sat", false));
+    }
+
+    #[test]
+    fn word_boundary_rejects_word_as_prefix_of_longer_word() {
+        assert!(!is_match(&compile(r"\bcat\b"), "category", false));
+    }
+
+    #[test]
+    fn word_boundary_rejects_word_as_suffix_of_longer_word() {
+        assert!(!is_match(&compile(r"\bcat\b"), "bobcat", false));
+    }
+
+    #[test]
+    fn word_boundary_rejects_word_in_the_middle_of_a_longer_word() {
+        assert!(!is_match(&compile(r"\bcat\b"), "concatenate", false));
+    }
+
+    #[test]
+    fn word_boundary_matches_at_the_very_start_and_end_of_text() {
+        assert!(is_match(&compile(r"\bcat\b"), "cat", false));
+    }
+
+    #[test]
+    fn word_boundary_treats_digits_and_underscore_as_word_characters() {
+        assert!(!is_match(&compile(r"\bfoo\b"), "foo_bar", false));
+        assert!(!is_match(&compile(r"\bfoo\b"), "foo1", false));
+        assert!(is_match(&compile(r"\bfoo\b"), "foo 1", false));
+    }
+
+    #[test]
+    fn word_boundary_matches_word_next_to_punctuation() {
+        assert!(is_match(&compile(r"\bmain\b"), "fn main() {", false));
+    }
 }

@@ -191,4 +191,59 @@ mod tests {
     fn builder_propagates_parse_errors() {
         assert!(RegexBuilder::new("(".to_string()).build().is_err());
     }
+
+    #[test]
+    fn builder_defaults_to_no_whole_word_restriction() {
+        let re = RegexBuilder::new("cat".to_string()).build().unwrap();
+        assert!(re.is_match("category"));
+    }
+
+    #[test]
+    fn builder_whole_word_true_matches_standalone_word() {
+        let re = RegexBuilder::new("cat".to_string())
+            .whole_word(true)
+            .build()
+            .unwrap();
+        assert!(re.is_match("a cat sat"));
+    }
+
+    #[test]
+    fn builder_whole_word_true_rejects_word_inside_a_longer_word() {
+        let re = RegexBuilder::new("cat".to_string())
+            .whole_word(true)
+            .build()
+            .unwrap();
+        assert!(!re.is_match("category"));
+        assert!(!re.is_match("bobcat"));
+        assert!(!re.is_match("concatenate"));
+    }
+
+    #[test]
+    fn builder_whole_word_true_matches_at_start_and_end_of_text() {
+        let re = RegexBuilder::new("cat".to_string())
+            .whole_word(true)
+            .build()
+            .unwrap();
+        assert!(re.is_match("cat"));
+    }
+
+    #[test]
+    fn builder_whole_word_false_is_explicit_default() {
+        let re = RegexBuilder::new("cat".to_string())
+            .whole_word(false)
+            .build()
+            .unwrap();
+        assert!(re.is_match("category"));
+    }
+
+    #[test]
+    fn builder_whole_word_combines_with_case_insensitive() {
+        let re = RegexBuilder::new("cat".to_string())
+            .whole_word(true)
+            .case_insensitive(true)
+            .build()
+            .unwrap();
+        assert!(re.is_match("a CAT sat"));
+        assert!(!re.is_match("category"));
+    }
 }
