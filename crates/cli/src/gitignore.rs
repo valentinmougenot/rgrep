@@ -5,7 +5,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Clone)]
 pub struct Gitignore {
     patterns: Vec<Pattern>,
 }
@@ -75,13 +74,8 @@ impl Gitignore {
 
         ignored
     }
-
-    pub fn is_ignored(&self, relative_path: &Path, is_dir: bool) -> bool {
-        self.verdict(relative_path, is_dir).unwrap_or(false)
-    }
 }
 
-#[derive(Clone)]
 struct Pattern {
     negative: bool,
     anchored: bool,
@@ -117,7 +111,6 @@ fn glob_match(pattern: &[u8], text: &[u8]) -> bool {
     }
 }
 
-#[derive(Clone)]
 pub struct GitignoreCache {
     root: PathBuf,
     cache: RefCell<HashMap<PathBuf, Gitignore>>,
@@ -185,49 +178,49 @@ mod tests {
     #[test]
     fn basename_pattern_matches_at_any_depth() {
         let gi = Gitignore::parse("*.log");
-        assert!(gi.is_ignored(Path::new("a.log"), false));
-        assert!(gi.is_ignored(Path::new("sub/a.log"), false));
-        assert!(!gi.is_ignored(Path::new("a.txt"), false));
+        assert!(gi.verdict(Path::new("a.log"), false).unwrap_or(false));
+        assert!(gi.verdict(Path::new("sub/a.log"), false).unwrap_or(false));
+        assert!(!gi.verdict(Path::new("a.txt"), false).unwrap_or(false));
     }
 
     #[test]
     fn leading_slash_anchors_to_root_only() {
         let gi = Gitignore::parse("/build");
-        assert!(gi.is_ignored(Path::new("build"), true));
-        assert!(!gi.is_ignored(Path::new("sub/build"), true));
+        assert!(gi.verdict(Path::new("build"), true).unwrap_or(false));
+        assert!(!gi.verdict(Path::new("sub/build"), true).unwrap_or(false));
     }
 
     #[test]
     fn internal_slash_anchors_and_keeps_the_slash() {
         let gi = Gitignore::parse("src/gen");
-        assert!(gi.is_ignored(Path::new("src/gen"), true));
-        assert!(!gi.is_ignored(Path::new("other/src/gen"), true));
+        assert!(gi.verdict(Path::new("src/gen"), true).unwrap_or(false));
+        assert!(!gi.verdict(Path::new("other/src/gen"), true).unwrap_or(false));
     }
 
     #[test]
     fn trailing_slash_only_matches_directories() {
         let gi = Gitignore::parse("build/");
-        assert!(gi.is_ignored(Path::new("build"), true));
-        assert!(!gi.is_ignored(Path::new("build"), false));
+        assert!(gi.verdict(Path::new("build"), true).unwrap_or(false));
+        assert!(!gi.verdict(Path::new("build"), false).unwrap_or(false));
     }
 
     #[test]
     fn negation_overrides_a_previous_broader_match() {
         let gi = Gitignore::parse("*.log\n!important.log\n");
-        assert!(gi.is_ignored(Path::new("a.log"), false));
-        assert!(!gi.is_ignored(Path::new("important.log"), false));
+        assert!(gi.verdict(Path::new("a.log"), false).unwrap_or(false));
+        assert!(!gi.verdict(Path::new("important.log"), false).unwrap_or(false));
     }
 
     #[test]
     fn later_pattern_overrides_earlier_negation() {
         let gi = Gitignore::parse("!keep.txt\nkeep.txt\n");
-        assert!(gi.is_ignored(Path::new("keep.txt"), false));
+        assert!(gi.verdict(Path::new("keep.txt"), false).unwrap_or(false));
     }
 
     #[test]
     fn unmatched_path_is_not_ignored() {
         let gi = Gitignore::parse("*.log");
-        assert!(!gi.is_ignored(Path::new("readme.md"), false));
+        assert!(!gi.verdict(Path::new("readme.md"), false).unwrap_or(false));
     }
 
     #[test]
@@ -252,8 +245,10 @@ mod tests {
 
     impl TempDir {
         fn new(name: &str) -> Self {
-            let path = std::env::temp_dir()
-                .join(format!("rgrep_gitignore_test_{name}_{}", std::process::id()));
+            let path = std::env::temp_dir().join(format!(
+                "rgrep_gitignore_test_{name}_{}",
+                std::process::id()
+            ));
             let _ = std::fs::remove_dir_all(&path);
             std::fs::create_dir_all(&path).unwrap();
             Self(path)

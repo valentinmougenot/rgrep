@@ -3,6 +3,7 @@ use std::{
     fs::File,
     io::{self, BufReader},
     path::{Path, PathBuf},
+    rc::Rc,
 };
 
 use regex_engine::{Regex, RegexBuilder};
@@ -19,7 +20,7 @@ use crate::{
 pub struct App {
     args: Args,
     regex: Regex,
-    gitignore: GitignoreCache,
+    gitignore: Rc<GitignoreCache>,
     output: Output<io::Stdout>,
 }
 
@@ -37,7 +38,7 @@ impl App {
         {
             root = Some(path.clone());
         }
-        let gitignore = GitignoreCache::new(root.clone().unwrap_or(PathBuf::new()));
+        let gitignore = Rc::new(GitignoreCache::new(root.clone().unwrap_or(PathBuf::new())));
         let output = Output::new(
             args.output_mode,
             io::stdout(),
@@ -130,8 +131,8 @@ mod tests {
 
     impl TempDir {
         fn new(name: &str) -> Self {
-            let path = std::env::temp_dir()
-                .join(format!("rgrep_app_test_{name}_{}", std::process::id()));
+            let path =
+                std::env::temp_dir().join(format!("rgrep_app_test_{name}_{}", std::process::id()));
             let _ = fs::remove_dir_all(&path);
             fs::create_dir_all(&path).unwrap();
             Self(path)
