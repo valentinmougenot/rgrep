@@ -15,6 +15,9 @@ pub enum Ast {
     Dot,
     StartAnchor,
     EndAnchor,
+    WordBoundary,
+    WordStart,
+    WordEnd,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

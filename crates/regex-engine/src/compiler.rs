@@ -31,6 +31,9 @@ impl Compiler {
             Ast::Repetition { kind, inner } => self.compile_repetition(*kind, inner),
             Ast::StartAnchor => self.compile_start_anchor(),
             Ast::EndAnchor => self.compile_end_anchor(),
+            Ast::WordBoundary => self.compile_word_boundary(),
+            Ast::WordStart => self.compile_word_start(),
+            Ast::WordEnd => self.compile_word_end(),
         }
     }
 
@@ -173,6 +176,33 @@ impl Compiler {
         let entry = self
             .builder
             .push_state(State::Assert(AssertKind::End, exit));
+
+        Fragment { entry, exit }
+    }
+
+    fn compile_word_boundary(&mut self) -> Fragment {
+        let exit = self.builder.push_state(State::Split(vec![]));
+        let entry = self
+            .builder
+            .push_state(State::Assert(AssertKind::WordBoundary, exit));
+
+        Fragment { entry, exit }
+    }
+
+    fn compile_word_start(&mut self) -> Fragment {
+        let exit = self.builder.push_state(State::Split(vec![]));
+        let entry = self
+            .builder
+            .push_state(State::Assert(AssertKind::WordStart, exit));
+
+        Fragment { entry, exit }
+    }
+
+    fn compile_word_end(&mut self) -> Fragment {
+        let exit = self.builder.push_state(State::Split(vec![]));
+        let entry = self
+            .builder
+            .push_state(State::Assert(AssertKind::WordEnd, exit));
 
         Fragment { entry, exit }
     }

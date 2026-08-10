@@ -1,5 +1,6 @@
 use crate::{
     ParseError,
+    ast::Ast,
     compiler::Compiler,
     nfa::Nfa,
     parser::Parser,
@@ -57,6 +58,7 @@ impl<'t> Match<'t> {
 pub struct RegexBuilder {
     pattern: String,
     case_insensitive: bool,
+    whole_word: bool,
 }
 
 impl RegexBuilder {
@@ -64,6 +66,7 @@ impl RegexBuilder {
         Self {
             pattern,
             case_insensitive: false,
+            whole_word: false,
         }
     }
 
@@ -72,9 +75,19 @@ impl RegexBuilder {
         self
     }
 
+    pub fn whole_word(mut self, value: bool) -> Self {
+        self.whole_word = value;
+        self
+    }
+
     pub fn build(self) -> Result<Regex, ParseError> {
         let mut parser = Parser::new(&self.pattern);
-        let ast = parser.parse()?;
+        let mut ast = parser.parse()?;
+
+        if self.whole_word {
+            ast = Ast::Concat(vec![Ast::WordStart, ast, Ast::WordEnd]);
+        }
+
         let compiler = Compiler::new();
         let nfa = compiler.build(&ast);
 

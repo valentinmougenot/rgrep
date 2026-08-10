@@ -94,6 +94,7 @@ impl<'a> Parser<'a> {
             Some('\\') => {
                 self.scanner.bump();
                 match self.scanner.bump() {
+                    Some('b') => Ok(Ast::WordBoundary),
                     Some(c) => Ok(Ast::Literal(c)),
                     None => Err(ParseError {
                         kind: ParseErrorKind::UnexpectedEof,

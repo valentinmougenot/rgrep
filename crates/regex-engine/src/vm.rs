@@ -7,7 +7,14 @@ pub(crate) fn is_match(nfa: &Nfa, text: &str, case_insensitive: bool) -> bool {
 }
 
 pub(crate) fn find(nfa: &Nfa, text: &str, case_insensitive: bool) -> Option<(usize, usize)> {
-    let mut current = epsilon_closure(nfa, &[(nfa.start(), 0)], true, text.is_empty());
+    let mut context = Context {
+        at_start: true,
+        at_end: text.is_empty(),
+        at_word_boundary: is_word_boundary(text, 0),
+        at_word_start: is_word_start(text, 0),
+        at_word_end: is_word_end(text, 0),
+    };
+    let mut current = epsilon_closure(nfa, &[(nfa.start(), 0)], &context);
 
     for (i, c) in text.char_indices() {
         let mut collected_targets = Vec::new();
@@ -29,12 +36,15 @@ pub(crate) fn find(nfa: &Nfa, text: &str, case_insensitive: bool) -> Option<(usi
         }
 
         collected_targets.push((nfa.start(), i + c.len_utf8()));
-        current = epsilon_closure(
-            nfa,
-            &collected_targets,
-            false,
-            i + c.len_utf8() == text.len(),
-        );
+
+        context = Context {
+            at_start: false,
+            at_end: i + c.len_utf8() == text.len(),
+            at_word_boundary: is_word_boundary(text, i + c.len_utf8()),
+            at_word_start: is_word_start(text, i + c.len_utf8()),
+            at_word_end: is_word_end(text, i + c.len_utf8()),
+        };
+        current = epsilon_closure(nfa, &collected_targets, &context);
     }
 
     current
@@ -43,12 +53,7 @@ pub(crate) fn find(nfa: &Nfa, text: &str, case_insensitive: bool) -> Option<(usi
         .map(|(_, start)| (*start, text.len()))
 }
 
-fn epsilon_closure(
-    nfa: &Nfa,
-    states: &[(usize, usize)],
-    at_start: bool,
-    at_end: bool,
-) -> Vec<(usize, usize)> {
+fn epsilon_closure(nfa: &Nfa, states: &[(usize, usize)], context: &Context) -> Vec<(usize, usize)> {
     let mut visited = vec![false; nfa.states_count()];
     let mut result = Vec::new();
 
@@ -77,11 +82,29 @@ fn epsilon_closure(
                 result.push((state_idx, start_pos));
                 visited[state_idx] = true;
             }
-            State::Assert(AssertKind::Start, value) if at_start && !visited[*value] => {
+            State::Assert(AssertKind::Start, value) if context.at_start && !visited[*value] => {
                 worklist.push_back((*value, start_pos));
                 visited[*value] = true;
             }
-            State::Assert(AssertKind::End, value) if at_end && !visited[*value] => {
+            State::Assert(AssertKind::End, value) if context.at_end && !visited[*value] => {
+                worklist.push_back((*value, start_pos));
+                visited[*value] = true;
+            }
+            State::Assert(AssertKind::WordBoundary, value)
+                if context.at_word_boundary && !visited[*value] =>
+            {
+                worklist.push_back((*value, start_pos));
+                visited[*value] = true;
+            }
+            State::Assert(AssertKind::WordStart, value)
+                if context.at_word_start && !visited[*value] =>
+            {
+                worklist.push_back((*value, start_pos));
+                visited[*value] = true;
+            }
+            State::Assert(AssertKind::WordEnd, value)
+                if context.at_word_end && !visited[*value] =>
+            {
                 worklist.push_back((*value, start_pos));
                 visited[*value] = true;
             }
@@ -90,6 +113,33 @@ fn epsilon_closure(
     }
 
     result
+}
+
+fn is_word_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+fn is_word_boundary(text: &str, pos: usize) -> bool {
+    let before = text[..pos].chars().next_back().is_some_and(is_word_char);
+    let after = text[pos..].chars().next().is_some_and(is_word_char);
+
+    before != after
+}
+
+fn is_word_start(text: &str, pos: usize) -> bool {
+    !text[..pos].chars().next_back().is_some_and(is_word_char)
+}
+
+fn is_word_end(text: &str, pos: usize) -> bool {
+    !text[pos..].chars().next().is_some_and(is_word_char)
+}
+
+struct Context {
+    at_start: bool,
+    at_end: bool,
+    at_word_boundary: bool,
+    at_word_start: bool,
+    at_word_end: bool,
 }
 
 #[cfg(test)]
@@ -216,7 +266,10 @@ mod tests {
 
     #[test]
     fn find_returns_the_span_of_the_matching_alternation_branch() {
-        assert_eq!(find(&compile("cat|dog"), "the dog ran", false), Some((4, 7)));
+        assert_eq!(
+            find(&compile("cat|dog"), "the dog ran", false),
+            Some((4, 7))
+        );
     }
 
     #[test]

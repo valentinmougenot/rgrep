@@ -10,6 +10,9 @@ pub enum State {
 pub enum AssertKind {
     Start,
     End,
+    WordBoundary,
+    WordStart,
+    WordEnd,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
