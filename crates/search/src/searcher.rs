@@ -205,4 +205,81 @@ mod tests {
         let matches: Vec<LineMatch> = search(&re, "no match".as_bytes(), true, 0, 0).collect();
         assert_eq!(matches[0].match_span, None);
     }
+
+    #[test]
+    fn after_context_includes_the_lines_following_a_match() {
+        let re = Regex::new("ab").unwrap();
+        let input = "xx\nab\nc\nd\ne\nf";
+        let matches: Vec<LineMatch> = search(&re, input.as_bytes(), false, 0, 2).collect();
+
+        let line_numbers: Vec<usize> = matches.iter().map(|m| m.line_number).collect();
+        assert_eq!(line_numbers, vec![2, 3, 4]);
+        assert!(!matches[0].is_context);
+        assert!(matches[1].is_context);
+        assert!(matches[2].is_context);
+    }
+
+    #[test]
+    fn after_context_is_truncated_at_the_end_of_input() {
+        let re = Regex::new("ab").unwrap();
+        let input = "x\nab\ny";
+        let matches: Vec<LineMatch> = search(&re, input.as_bytes(), false, 0, 5).collect();
+
+        let line_numbers: Vec<usize> = matches.iter().map(|m| m.line_number).collect();
+        assert_eq!(line_numbers, vec![2, 3]);
+    }
+
+    #[test]
+    fn before_context_includes_the_lines_preceding_a_match() {
+        let re = Regex::new("ab").unwrap();
+        let input = "w\nx\ny\nab\nz";
+        let matches: Vec<LineMatch> = search(&re, input.as_bytes(), false, 2, 0).collect();
+
+        let line_numbers: Vec<usize> = matches.iter().map(|m| m.line_number).collect();
+        assert_eq!(line_numbers, vec![2, 3, 4]);
+        assert!(matches[0].is_context);
+        assert!(matches[1].is_context);
+        assert!(!matches[2].is_context);
+    }
+
+    #[test]
+    fn before_context_only_keeps_the_lines_closest_to_the_match() {
+        let re = Regex::new("ab").unwrap();
+        let input = "v\nw\nx\ny\nab";
+        let matches: Vec<LineMatch> = search(&re, input.as_bytes(), false, 2, 0).collect();
+
+        let line_numbers: Vec<usize> = matches.iter().map(|m| m.line_number).collect();
+        assert_eq!(line_numbers, vec![3, 4, 5]);
+    }
+
+    #[test]
+    fn before_and_after_context_can_be_combined() {
+        let re = Regex::new("MATCH").unwrap();
+        let input = "a\nb\nMATCH\nc\nd";
+        let matches: Vec<LineMatch> = search(&re, input.as_bytes(), false, 1, 1).collect();
+
+        let line_numbers: Vec<usize> = matches.iter().map(|m| m.line_number).collect();
+        assert_eq!(line_numbers, vec![2, 3, 4]);
+    }
+
+    #[test]
+    fn a_line_that_is_both_after_context_and_the_next_match_is_reported_once_as_a_match() {
+        let re = Regex::new("ab").unwrap();
+        let input = "ab\nab";
+        let matches: Vec<LineMatch> = search(&re, input.as_bytes(), false, 0, 5).collect();
+
+        assert_eq!(matches.len(), 2);
+        assert!(!matches[0].is_context);
+        assert!(!matches[1].is_context);
+    }
+
+    #[test]
+    fn distinct_matches_with_context_leave_a_gap_in_line_numbers_when_far_apart() {
+        let re = Regex::new("MATCH").unwrap();
+        let input = "MATCH\nx\ny\nz\nw\nv\nu\nt\ns\nr\nMATCH";
+        let matches: Vec<LineMatch> = search(&re, input.as_bytes(), false, 1, 1).collect();
+
+        let line_numbers: Vec<usize> = matches.iter().map(|m| m.line_number).collect();
+        assert_eq!(line_numbers, vec![1, 2, 10, 11]);
+    }
 }

@@ -356,4 +356,94 @@ mod tests {
         assert!(args.invert_match);
         assert!(args.case_insensitive);
     }
+
+    #[test]
+    fn default_context_is_zero() {
+        let args = parse_vec(vec!["ab"]).unwrap();
+        assert_eq!(args.before_context, 0);
+        assert_eq!(args.after_context, 0);
+    }
+
+    #[test]
+    fn long_after_context_flag_sets_after_context() {
+        let args = parse_vec(vec!["--after-context", "2", "ab"]).unwrap();
+        assert_eq!(args.after_context, 2);
+        assert_eq!(args.before_context, 0);
+    }
+
+    #[test]
+    fn long_before_context_flag_sets_before_context() {
+        let args = parse_vec(vec!["--before-context", "3", "ab"]).unwrap();
+        assert_eq!(args.before_context, 3);
+        assert_eq!(args.after_context, 0);
+    }
+
+    #[test]
+    fn long_context_flag_sets_both_before_and_after_context() {
+        let args = parse_vec(vec!["--context", "2", "ab"]).unwrap();
+        assert_eq!(args.before_context, 2);
+        assert_eq!(args.after_context, 2);
+    }
+
+    #[test]
+    fn long_after_context_flag_without_a_value_is_unexpected_eoi() {
+        let err = parse_vec(vec!["--after-context"]).unwrap_err();
+        assert_eq!(err.kind, ArgsErrorKind::UnexpectedEOI);
+    }
+
+    #[test]
+    fn long_after_context_flag_with_a_non_numeric_value_is_unexpected() {
+        let err = parse_vec(vec!["--after-context", "x", "ab"]).unwrap_err();
+        assert_eq!(err.kind, ArgsErrorKind::UnexpectedArgument("x".into()));
+    }
+
+    #[test]
+    fn short_after_context_flag_with_a_separate_value_sets_after_context() {
+        let args = parse_vec(vec!["-A", "4", "ab"]).unwrap();
+        assert_eq!(args.after_context, 4);
+    }
+
+    #[test]
+    fn short_after_context_flag_with_an_attached_value_sets_after_context() {
+        let args = parse_vec(vec!["-A4", "ab"]).unwrap();
+        assert_eq!(args.after_context, 4);
+    }
+
+    #[test]
+    fn short_before_context_flag_with_a_separate_value_sets_before_context() {
+        let args = parse_vec(vec!["-B", "4", "ab"]).unwrap();
+        assert_eq!(args.before_context, 4);
+    }
+
+    #[test]
+    fn short_before_context_flag_with_an_attached_value_sets_before_context() {
+        let args = parse_vec(vec!["-B4", "ab"]).unwrap();
+        assert_eq!(args.before_context, 4);
+    }
+
+    #[test]
+    fn short_context_flag_sets_both_before_and_after_context() {
+        let args = parse_vec(vec!["-C2", "ab"]).unwrap();
+        assert_eq!(args.before_context, 2);
+        assert_eq!(args.after_context, 2);
+    }
+
+    #[test]
+    fn short_after_context_flag_without_a_value_is_unexpected_eoi() {
+        let err = parse_vec(vec!["-A"]).unwrap_err();
+        assert_eq!(err.kind, ArgsErrorKind::UnexpectedEOI);
+    }
+
+    #[test]
+    fn short_after_context_flag_with_a_non_numeric_attached_value_is_unexpected() {
+        let err = parse_vec(vec!["-Ax", "ab"]).unwrap_err();
+        assert_eq!(err.kind, ArgsErrorKind::UnexpectedArgument("x".into()));
+    }
+
+    #[test]
+    fn short_context_flag_can_be_bundled_after_other_short_flags() {
+        let args = parse_vec(vec!["-iA2", "ab"]).unwrap();
+        assert!(args.case_insensitive);
+        assert_eq!(args.after_context, 2);
+    }
 }

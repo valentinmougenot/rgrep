@@ -243,6 +243,44 @@ mod tests {
     }
 
     #[test]
+    fn matches_mode_inserts_a_separator_between_non_adjacent_line_numbers_when_enabled() {
+        let matches = vec![
+            line_match(2, "b", 0, 1),
+            line_match(3, "MATCH1", 0, 5),
+            line_match(10, "i", 0, 1),
+            line_match(11, "MATCH2", 0, 5),
+        ];
+
+        let mut output = Output::new(OutputMode::Matches, Vec::new(), false, true);
+        output.report(&mut matches.into_iter().peekable(), None);
+
+        assert_eq!(
+            String::from_utf8(output.writer).unwrap(),
+            "2:b\n3:MATCH1\n--\n10:i\n11:MATCH2\n"
+        );
+    }
+
+    #[test]
+    fn matches_mode_does_not_insert_a_separator_for_adjacent_line_numbers() {
+        let matches = vec![line_match(1, "a", 0, 1), line_match(2, "b", 0, 1)];
+
+        let mut output = Output::new(OutputMode::Matches, Vec::new(), false, true);
+        output.report(&mut matches.into_iter().peekable(), None);
+
+        assert_eq!(String::from_utf8(output.writer).unwrap(), "1:a\n2:b\n");
+    }
+
+    #[test]
+    fn matches_mode_does_not_insert_a_separator_when_show_separator_is_false() {
+        let matches = vec![line_match(2, "b", 0, 1), line_match(10, "i", 0, 1)];
+
+        let mut output = Output::new(OutputMode::Matches, Vec::new(), false, false);
+        output.report(&mut matches.into_iter().peekable(), None);
+
+        assert_eq!(String::from_utf8(output.writer).unwrap(), "2:b\n10:i\n");
+    }
+
+    #[test]
     fn count_mode_prints_the_total_with_the_path() {
         let matches = vec![
             line_match(1, "hello", 0, 5),
