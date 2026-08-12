@@ -19,6 +19,26 @@ pub struct ArgsError {
     pub kind: ArgsErrorKind,
 }
 
+impl ArgsError {
+    fn missing_pattern() -> Self {
+        Self {
+            kind: ArgsErrorKind::MissingPattern,
+        }
+    }
+
+    fn unexpected(arg: String) -> Self {
+        Self {
+            kind: ArgsErrorKind::UnexpectedArgument(arg),
+        }
+    }
+
+    fn eoi() -> Self {
+        Self {
+            kind: ArgsErrorKind::UnexpectedEOI,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ArgsErrorKind {
     MissingPattern,
@@ -54,35 +74,21 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                 "word-regexp" => whole_word = true,
                 "invert-match" => invert_match = true,
                 "after-context" => {
-                    let next = args.next().ok_or(ArgsError {
-                        kind: ArgsErrorKind::UnexpectedEOI,
-                    })?;
-                    after_context = next.parse().map_err(|_| ArgsError {
-                        kind: ArgsErrorKind::UnexpectedArgument(next),
-                    })?;
+                    let next = args.next().ok_or(ArgsError::eoi())?;
+                    after_context = next.parse().map_err(|_| ArgsError::unexpected(next))?;
                 }
                 "before-context" => {
-                    let next = args.next().ok_or(ArgsError {
-                        kind: ArgsErrorKind::UnexpectedEOI,
-                    })?;
-                    before_context = next.parse().map_err(|_| ArgsError {
-                        kind: ArgsErrorKind::UnexpectedArgument(next),
-                    })?;
+                    let next = args.next().ok_or(ArgsError::eoi())?;
+                    before_context = next.parse().map_err(|_| ArgsError::unexpected(next))?;
                 }
                 "context" => {
-                    let next = args.next().ok_or(ArgsError {
-                        kind: ArgsErrorKind::UnexpectedEOI,
-                    })?;
-                    let context = next.parse().map_err(|_| ArgsError {
-                        kind: ArgsErrorKind::UnexpectedArgument(next),
-                    })?;
+                    let next = args.next().ok_or(ArgsError::eoi())?;
+                    let context = next.parse().map_err(|_| ArgsError::unexpected(next))?;
                     after_context = context;
                     before_context = context;
                 }
                 _ => {
-                    return Err(ArgsError {
-                        kind: ArgsErrorKind::UnexpectedArgument(arg),
-                    });
+                    return Err(ArgsError::unexpected(arg));
                 }
             }
         } else if let Some(short) = arg.strip_prefix('-') {
@@ -96,49 +102,37 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                     'A' => {
                         let rest = &short[i + c.len_utf8()..];
                         let value = if rest.is_empty() {
-                            args.next().ok_or(ArgsError {
-                                kind: ArgsErrorKind::UnexpectedEOI,
-                            })?
+                            args.next().ok_or(ArgsError::eoi())?
                         } else {
                             rest.to_string()
                         };
-                        after_context = value.parse().map_err(|_| ArgsError {
-                            kind: ArgsErrorKind::UnexpectedArgument(value),
-                        })?;
+                        after_context = value.parse().map_err(|_| ArgsError::unexpected(value))?;
                         break;
                     }
                     'B' => {
                         let rest = &short[i + c.len_utf8()..];
                         let value = if rest.is_empty() {
-                            args.next().ok_or(ArgsError {
-                                kind: ArgsErrorKind::UnexpectedEOI,
-                            })?
+                            args.next().ok_or(ArgsError::eoi())?
                         } else {
                             rest.to_string()
                         };
-                        before_context = value.parse().map_err(|_| ArgsError {
-                            kind: ArgsErrorKind::UnexpectedArgument(value),
-                        })?;
+                        before_context = value.parse().map_err(|_| ArgsError::unexpected(value))?;
                         break;
                     }
                     'C' => {
                         let rest = &short[i + c.len_utf8()..];
                         let value = if rest.is_empty() {
-                            args.next().ok_or(ArgsError {
-                                kind: ArgsErrorKind::UnexpectedEOI,
-                            })?
+                            args.next().ok_or(ArgsError::eoi())?
                         } else {
                             rest.to_string()
                         };
-                        after_context = value.parse().map_err(|_| ArgsError {
-                            kind: ArgsErrorKind::UnexpectedArgument(value),
-                        })?;
+                        after_context = value.parse().map_err(|_| ArgsError::unexpected(value))?;
                         before_context = after_context;
                         break;
                     }
                     _ => {
                         return Err(ArgsError {
-                            kind: ArgsErrorKind::UnexpectedArgument(arg.clone()),
+                            kind: ArgsErrorKind::UnexpectedArgument(arg),
                         });
                     }
                 }
@@ -150,15 +144,11 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
 
     let mut positionals = positionals.into_iter();
 
-    let pattern = positionals.next().ok_or(ArgsError {
-        kind: ArgsErrorKind::MissingPattern,
-    })?;
+    let pattern = positionals.next().ok_or(ArgsError::missing_pattern())?;
     let path = positionals.next().map(PathBuf::from);
 
     if let Some(arg) = positionals.next() {
-        return Err(ArgsError {
-            kind: ArgsErrorKind::UnexpectedArgument(arg),
-        });
+        return Err(ArgsError::unexpected(arg));
     }
 
     Ok(Args {
