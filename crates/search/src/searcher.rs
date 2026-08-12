@@ -58,9 +58,14 @@ impl<'r, R: BufRead> Iterator for Matches<'r, R> {
             let buf_clone = self.buf.clone();
             let maybe_line_match = self.regex.find(&buf_clone);
 
-            if let Some(ref line_match) = maybe_line_match
-                && !self.invert_match
-            {
+            let is_hit = maybe_line_match.is_some() != self.invert_match;
+
+            if is_hit {
+                let match_span = if self.invert_match {
+                    None
+                } else {
+                    maybe_line_match.map(|line_match| line_match.start()..line_match.end())
+                };
                 let before_buffer = std::mem::take(&mut self.before_buffer);
 
                 for (line_number, line) in before_buffer {
@@ -75,26 +80,7 @@ impl<'r, R: BufRead> Iterator for Matches<'r, R> {
                 self.pending.push_back(LineMatch {
                     line_number: self.line_number,
                     line: std::mem::take(&mut self.buf),
-                    match_span: Some(line_match.start()..line_match.end()),
-                    is_context: false,
-                });
-                self.after_remaining = self.after_context;
-            } else if maybe_line_match.is_none() && self.invert_match {
-                let before_buffer = std::mem::take(&mut self.before_buffer);
-
-                for (line_number, line) in before_buffer {
-                    self.pending.push_back(LineMatch {
-                        line_number,
-                        line,
-                        match_span: None,
-                        is_context: true,
-                    });
-                }
-
-                self.pending.push_back(LineMatch {
-                    line_number: self.line_number,
-                    line: std::mem::take(&mut self.buf),
-                    match_span: None,
+                    match_span,
                     is_context: false,
                 });
                 self.after_remaining = self.after_context;
@@ -132,7 +118,8 @@ mod tests {
     #[test]
     fn returns_no_matches_when_pattern_is_absent() {
         let re = Regex::new("ab").unwrap();
-        let matches: Vec<LineMatch> = search(&re, "xxx\nyyy\nzzz".as_bytes(), false, 0, 0).collect();
+        let matches: Vec<LineMatch> =
+            search(&re, "xxx\nyyy\nzzz".as_bytes(), false, 0, 0).collect();
         assert!(matches.is_empty());
     }
 
