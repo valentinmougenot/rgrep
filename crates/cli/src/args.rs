@@ -74,16 +74,16 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                 "word-regexp" => whole_word = true,
                 "invert-match" => invert_match = true,
                 "after-context" => {
-                    let next = args.next().ok_or(ArgsError::eoi())?;
-                    after_context = next.parse().map_err(|_| ArgsError::unexpected(next))?;
+                    let next = next_arg(args)?;
+                    after_context = parse_usize(next)?;
                 }
                 "before-context" => {
-                    let next = args.next().ok_or(ArgsError::eoi())?;
-                    before_context = next.parse().map_err(|_| ArgsError::unexpected(next))?;
+                    let next = next_arg(args)?;
+                    before_context = parse_usize(next)?;
                 }
                 "context" => {
-                    let next = args.next().ok_or(ArgsError::eoi())?;
-                    let context = next.parse().map_err(|_| ArgsError::unexpected(next))?;
+                    let next = next_arg(args)?;
+                    let context = parse_usize(next)?;
                     after_context = context;
                     before_context = context;
                 }
@@ -102,38 +102,36 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                     'A' => {
                         let rest = &short[i + c.len_utf8()..];
                         let value = if rest.is_empty() {
-                            args.next().ok_or(ArgsError::eoi())?
+                            next_arg(args)?
                         } else {
                             rest.to_string()
                         };
-                        after_context = value.parse().map_err(|_| ArgsError::unexpected(value))?;
+                        after_context = parse_usize(value)?;
                         break;
                     }
                     'B' => {
                         let rest = &short[i + c.len_utf8()..];
                         let value = if rest.is_empty() {
-                            args.next().ok_or(ArgsError::eoi())?
+                            next_arg(args)?
                         } else {
                             rest.to_string()
                         };
-                        before_context = value.parse().map_err(|_| ArgsError::unexpected(value))?;
+                        before_context = parse_usize(value)?;
                         break;
                     }
                     'C' => {
                         let rest = &short[i + c.len_utf8()..];
                         let value = if rest.is_empty() {
-                            args.next().ok_or(ArgsError::eoi())?
+                            next_arg(args)?
                         } else {
                             rest.to_string()
                         };
-                        after_context = value.parse().map_err(|_| ArgsError::unexpected(value))?;
+                        after_context = parse_usize(value)?;
                         before_context = after_context;
                         break;
                     }
                     _ => {
-                        return Err(ArgsError {
-                            kind: ArgsErrorKind::UnexpectedArgument(arg),
-                        });
+                        return Err(ArgsError::unexpected(arg));
                     }
                 }
             }
@@ -161,6 +159,14 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
         before_context,
         after_context,
     })
+}
+
+fn next_arg(args: &mut impl Iterator<Item = String>) -> Result<String, ArgsError> {
+    args.next().ok_or(ArgsError::eoi())
+}
+
+fn parse_usize(value: String) -> Result<usize, ArgsError> {
+    value.parse().map_err(|_| ArgsError::unexpected(value))
 }
 
 #[cfg(test)]
