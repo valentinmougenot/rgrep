@@ -10,6 +10,8 @@ pub struct Args {
     pub case_insensitive: bool,
     pub whole_word: bool,
     pub invert_match: bool,
+    pub before_context: usize,
+    pub after_context: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +23,7 @@ pub struct ArgsError {
 pub enum ArgsErrorKind {
     MissingPattern,
     UnexpectedArgument(String),
+    UnexpectedEOI,
 }
 
 impl Display for ArgsError {
@@ -28,6 +31,7 @@ impl Display for ArgsError {
         match &self.kind {
             ArgsErrorKind::MissingPattern => write!(f, "Missing pattern"),
             ArgsErrorKind::UnexpectedArgument(arg) => write!(f, "UnexpectedArgument '{}'", arg),
+            ArgsErrorKind::UnexpectedEOI => write!(f, "Unexpected end of input"),
         }
     }
 }
@@ -38,8 +42,10 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
     let mut case_insensitive = false;
     let mut whole_word = false;
     let mut invert_match = false;
+    let mut after_context: usize = 0;
+    let mut before_context: usize = 0;
 
-    for arg in args {
+    while let Some(arg) = args.next() {
         if let Some(long) = arg.strip_prefix("--") {
             match long {
                 "count" => output_mode = OutputMode::Count,
@@ -47,6 +53,32 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                 "ignore-case" => case_insensitive = true,
                 "word-regexp" => whole_word = true,
                 "invert-match" => invert_match = true,
+                "after-context" => {
+                    let next = args.next().ok_or(ArgsError {
+                        kind: ArgsErrorKind::UnexpectedEOI,
+                    })?;
+                    after_context = next.parse().map_err(|_| ArgsError {
+                        kind: ArgsErrorKind::UnexpectedArgument(next),
+                    })?;
+                }
+                "before-context" => {
+                    let next = args.next().ok_or(ArgsError {
+                        kind: ArgsErrorKind::UnexpectedEOI,
+                    })?;
+                    before_context = next.parse().map_err(|_| ArgsError {
+                        kind: ArgsErrorKind::UnexpectedArgument(next),
+                    })?;
+                }
+                "context" => {
+                    let next = args.next().ok_or(ArgsError {
+                        kind: ArgsErrorKind::UnexpectedEOI,
+                    })?;
+                    let context = next.parse().map_err(|_| ArgsError {
+                        kind: ArgsErrorKind::UnexpectedArgument(next),
+                    })?;
+                    after_context = context;
+                    before_context = context;
+                }
                 _ => {
                     return Err(ArgsError {
                         kind: ArgsErrorKind::UnexpectedArgument(arg),
@@ -54,13 +86,56 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                 }
             }
         } else if let Some(short) = arg.strip_prefix('-') {
-            for c in short.chars() {
+            for (i, c) in short.char_indices() {
                 match c {
                     'c' => output_mode = OutputMode::Count,
                     'l' => output_mode = OutputMode::Files,
                     'i' => case_insensitive = true,
                     'w' => whole_word = true,
                     'v' => invert_match = true,
+                    'A' => {
+                        let rest = &short[i + c.len_utf8()..];
+                        let value = if rest.is_empty() {
+                            args.next().ok_or(ArgsError {
+                                kind: ArgsErrorKind::UnexpectedEOI,
+                            })?
+                        } else {
+                            rest.to_string()
+                        };
+                        after_context = value.parse().map_err(|_| ArgsError {
+                            kind: ArgsErrorKind::UnexpectedArgument(value),
+                        })?;
+                        break;
+                    }
+                    'B' => {
+                        let rest = &short[i + c.len_utf8()..];
+                        let value = if rest.is_empty() {
+                            args.next().ok_or(ArgsError {
+                                kind: ArgsErrorKind::UnexpectedEOI,
+                            })?
+                        } else {
+                            rest.to_string()
+                        };
+                        before_context = value.parse().map_err(|_| ArgsError {
+                            kind: ArgsErrorKind::UnexpectedArgument(value),
+                        })?;
+                        break;
+                    }
+                    'C' => {
+                        let rest = &short[i + c.len_utf8()..];
+                        let value = if rest.is_empty() {
+                            args.next().ok_or(ArgsError {
+                                kind: ArgsErrorKind::UnexpectedEOI,
+                            })?
+                        } else {
+                            rest.to_string()
+                        };
+                        after_context = value.parse().map_err(|_| ArgsError {
+                            kind: ArgsErrorKind::UnexpectedArgument(value),
+                        })?;
+                        before_context = after_context;
+                        break;
+                    }
                     _ => {
                         return Err(ArgsError {
                             kind: ArgsErrorKind::UnexpectedArgument(arg.clone()),
@@ -93,6 +168,8 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
         case_insensitive,
         whole_word,
         invert_match,
+        before_context,
+        after_context,
     })
 }
 

@@ -43,6 +43,7 @@ impl App {
             args.output_mode,
             io::stdout(),
             args.output_mode == OutputMode::Matches && root.is_some(),
+            args.before_context > 0 || args.after_context > 0,
         );
 
         Ok(Self {
@@ -91,7 +92,14 @@ impl App {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
 
-        let mut matches = search(&self.regex, reader, self.args.invert_match).peekable();
+        let mut matches = search(
+            &self.regex,
+            reader,
+            self.args.invert_match,
+            self.args.before_context,
+            self.args.after_context,
+        )
+        .peekable();
 
         self.output.report(&mut matches, Some(path));
 
@@ -102,7 +110,14 @@ impl App {
         let stdin = io::stdin().lock();
         let reader = BufReader::new(stdin);
 
-        let matches = &mut search(&self.regex, reader, self.args.invert_match).peekable();
+        let matches = &mut search(
+            &self.regex,
+            reader,
+            self.args.invert_match,
+            self.args.before_context,
+            self.args.after_context,
+        )
+        .peekable();
 
         self.output.report(matches, None);
     }

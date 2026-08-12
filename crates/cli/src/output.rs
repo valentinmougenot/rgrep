@@ -17,16 +17,18 @@ pub struct Output<W: io::Write> {
     writer: W,
     show_header: bool,
     separator_needed: bool,
+    show_separator: bool,
 }
 
 impl<W: io::Write> Output<W> {
-    pub fn new(mode: OutputMode, writer: W, show_header: bool) -> Self {
+    pub fn new(mode: OutputMode, writer: W, show_header: bool, show_separator: bool) -> Self {
         Self {
             mode,
             colorizer: Colorizer::from_stdout(),
             writer,
             show_header,
             separator_needed: false,
+            show_separator,
         }
     }
 
@@ -65,7 +67,17 @@ impl<W: io::Write> Output<W> {
             .unwrap();
         }
 
+        let mut last_line_number = None;
+
         for line_match in matches {
+            if self.show_separator
+                && let Some(last) = last_line_number
+                && line_match.line_number > last + 1
+            {
+                writeln!(self.writer, "--").unwrap();
+            }
+            last_line_number = Some(line_match.line_number);
+
             if let Some(std::ops::Range { start, end }) = line_match.match_span {
                 write!(
                     self.writer,
@@ -130,6 +142,7 @@ mod tests {
             line_number,
             line: line.to_string(),
             match_span: Some(start..end),
+            is_context: false,
         }
     }
 
@@ -138,6 +151,7 @@ mod tests {
             line_number,
             line: line.to_string(),
             match_span: None,
+            is_context: false,
         }
     }
 
@@ -147,7 +161,7 @@ mod tests {
         path: Option<&Path>,
         show_header: bool,
     ) -> String {
-        let mut output = Output::new(mode, Vec::new(), show_header);
+        let mut output = Output::new(mode, Vec::new(), show_header, false);
         output.report(&mut matches.into_iter().peekable(), path);
         String::from_utf8(output.writer).unwrap()
     }
@@ -210,7 +224,7 @@ mod tests {
 
     #[test]
     fn matches_mode_separates_successive_headers_with_a_blank_line() {
-        let mut output = Output::new(OutputMode::Matches, Vec::new(), true);
+        let mut output = Output::new(OutputMode::Matches, Vec::new(), true, false);
         let path = Path::new("a.txt");
 
         output.report(
