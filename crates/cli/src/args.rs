@@ -83,9 +83,8 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                 }
                 "context" => {
                     let next = next_arg(args)?;
-                    let context = parse_usize(next)?;
-                    after_context = context;
-                    before_context = context;
+                    after_context = parse_usize(next)?;
+                    before_context = after_context;
                 }
                 _ => {
                     return Err(ArgsError::unexpected(arg));
@@ -100,32 +99,17 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                     'w' => whole_word = true,
                     'v' => invert_match = true,
                     'A' => {
-                        let rest = &short[i + c.len_utf8()..];
-                        let value = if rest.is_empty() {
-                            next_arg(args)?
-                        } else {
-                            rest.to_string()
-                        };
+                        let value = short_flag_value(short, i, c, args)?;
                         after_context = parse_usize(value)?;
                         break;
                     }
                     'B' => {
-                        let rest = &short[i + c.len_utf8()..];
-                        let value = if rest.is_empty() {
-                            next_arg(args)?
-                        } else {
-                            rest.to_string()
-                        };
+                        let value = short_flag_value(short, i, c, args)?;
                         before_context = parse_usize(value)?;
                         break;
                     }
                     'C' => {
-                        let rest = &short[i + c.len_utf8()..];
-                        let value = if rest.is_empty() {
-                            next_arg(args)?
-                        } else {
-                            rest.to_string()
-                        };
+                        let value = short_flag_value(short, i, c, args)?;
                         after_context = parse_usize(value)?;
                         before_context = after_context;
                         break;
@@ -167,6 +151,20 @@ fn next_arg(args: &mut impl Iterator<Item = String>) -> Result<String, ArgsError
 
 fn parse_usize(value: String) -> Result<usize, ArgsError> {
     value.parse().map_err(|_| ArgsError::unexpected(value))
+}
+
+fn short_flag_value(
+    short: &str,
+    pos: usize,
+    c: char,
+    args: &mut impl Iterator<Item = String>,
+) -> Result<String, ArgsError> {
+    let rest = &short[pos + c.len_utf8()..];
+    if rest.is_empty() {
+        next_arg(args)
+    } else {
+        Ok(rest.to_string())
+    }
 }
 
 #[cfg(test)]
