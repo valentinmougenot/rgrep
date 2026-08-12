@@ -55,17 +55,13 @@ impl<'r, R: BufRead> Iterator for Matches<'r, R> {
                 return None;
             }
 
-            let buf_clone = self.buf.clone();
-            let maybe_line_match = self.regex.find(&buf_clone);
-
+            let maybe_line_match = self.regex.find(&self.buf);
             let is_hit = maybe_line_match.is_some() != self.invert_match;
+            let match_range =
+                maybe_line_match.map(|line_match| line_match.start()..line_match.end());
 
             if is_hit {
-                let match_span = if self.invert_match {
-                    None
-                } else {
-                    maybe_line_match.map(|line_match| line_match.start()..line_match.end())
-                };
+                let match_span = if self.invert_match { None } else { match_range };
                 let before_buffer = std::mem::take(&mut self.before_buffer);
 
                 for (line_number, line) in before_buffer {
