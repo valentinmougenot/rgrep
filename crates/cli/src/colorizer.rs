@@ -5,10 +5,12 @@ pub struct Colorizer {
 }
 
 impl Colorizer {
+    pub fn new(enabled: bool) -> Self {
+        Self { enabled }
+    }
+
     pub fn from_stdout() -> Self {
-        Self {
-            enabled: io::stdout().is_terminal(),
-        }
+        Self::new(io::stdout().is_terminal())
     }
 
     pub fn path(&self, text: &str) -> String {

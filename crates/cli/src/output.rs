@@ -21,10 +21,16 @@ pub struct Output<W: io::Write> {
 }
 
 impl<W: io::Write> Output<W> {
-    pub fn new(mode: OutputMode, writer: W, show_header: bool, show_separator: bool) -> Self {
+    pub fn new(
+        mode: OutputMode,
+        writer: W,
+        show_header: bool,
+        show_separator: bool,
+        colorizer: Colorizer,
+    ) -> Self {
         Self {
             mode,
-            colorizer: Colorizer::from_stdout(),
+            colorizer,
             writer,
             show_header,
             separator_needed: false,
@@ -161,7 +167,7 @@ mod tests {
         path: Option<&Path>,
         show_header: bool,
     ) -> String {
-        let mut output = Output::new(mode, Vec::new(), show_header, false);
+        let mut output = Output::new(mode, Vec::new(), show_header, false, Colorizer::new(false));
         output.report(&mut matches.into_iter().peekable(), path);
         String::from_utf8(output.writer).unwrap()
     }
@@ -224,7 +230,13 @@ mod tests {
 
     #[test]
     fn matches_mode_separates_successive_headers_with_a_blank_line() {
-        let mut output = Output::new(OutputMode::Matches, Vec::new(), true, false);
+        let mut output = Output::new(
+            OutputMode::Matches,
+            Vec::new(),
+            true,
+            false,
+            Colorizer::new(false),
+        );
         let path = Path::new("a.txt");
 
         output.report(
@@ -251,7 +263,13 @@ mod tests {
             line_match(11, "MATCH2", 0, 5),
         ];
 
-        let mut output = Output::new(OutputMode::Matches, Vec::new(), false, true);
+        let mut output = Output::new(
+            OutputMode::Matches,
+            Vec::new(),
+            false,
+            true,
+            Colorizer::new(false),
+        );
         output.report(&mut matches.into_iter().peekable(), None);
 
         assert_eq!(
@@ -264,7 +282,13 @@ mod tests {
     fn matches_mode_does_not_insert_a_separator_for_adjacent_line_numbers() {
         let matches = vec![line_match(1, "a", 0, 1), line_match(2, "b", 0, 1)];
 
-        let mut output = Output::new(OutputMode::Matches, Vec::new(), false, true);
+        let mut output = Output::new(
+            OutputMode::Matches,
+            Vec::new(),
+            false,
+            true,
+            Colorizer::new(false),
+        );
         output.report(&mut matches.into_iter().peekable(), None);
 
         assert_eq!(String::from_utf8(output.writer).unwrap(), "1:a\n2:b\n");
@@ -274,7 +298,13 @@ mod tests {
     fn matches_mode_does_not_insert_a_separator_when_show_separator_is_false() {
         let matches = vec![line_match(2, "b", 0, 1), line_match(10, "i", 0, 1)];
 
-        let mut output = Output::new(OutputMode::Matches, Vec::new(), false, false);
+        let mut output = Output::new(
+            OutputMode::Matches,
+            Vec::new(),
+            false,
+            false,
+            Colorizer::new(false),
+        );
         output.report(&mut matches.into_iter().peekable(), None);
 
         assert_eq!(String::from_utf8(output.writer).unwrap(), "2:b\n10:i\n");

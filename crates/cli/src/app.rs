@@ -11,6 +11,7 @@ use search::search;
 
 use crate::{
     args::{Args, parse},
+    colorizer::Colorizer,
     error::{AppError, AppResult},
     gitignore::GitignoreCache,
     output::{Output, OutputMode},
@@ -44,6 +45,7 @@ impl App {
             io::stdout(),
             args.output_mode == OutputMode::Matches && root.is_some(),
             args.before_context > 0 || args.after_context > 0,
+            Colorizer::from_stdout(),
         );
 
         Ok(Self {
