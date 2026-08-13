@@ -245,6 +245,72 @@ mod tests {
     }
 
     #[test]
+    fn matches_mode_prints_only_the_matched_substring_when_only_matching_is_enabled() {
+        let mut output = Output::new(
+            OutputMode::Matches,
+            Vec::new(),
+            false,
+            false,
+            Colorizer::new(false),
+            true,
+        );
+
+        output.report(
+            &mut vec![line_match(1, "hello world", 0, 5)]
+                .into_iter()
+                .peekable(),
+            None,
+        );
+
+        assert_eq!(String::from_utf8(output.writer).unwrap(), "1:hello\n");
+    }
+
+    #[test]
+    fn matches_mode_prints_the_whole_line_when_only_matching_is_disabled() {
+        let mut output = Output::new(
+            OutputMode::Matches,
+            Vec::new(),
+            false,
+            false,
+            Colorizer::new(false),
+            false,
+        );
+
+        output.report(
+            &mut vec![line_match(1, "hello world", 0, 5)]
+                .into_iter()
+                .peekable(),
+            None,
+        );
+
+        assert_eq!(String::from_utf8(output.writer).unwrap(), "1:hello world\n");
+    }
+
+    #[test]
+    fn matches_mode_prints_the_whole_line_when_only_matching_is_enabled_but_match_span_is_none() {
+        let mut output = Output::new(
+            OutputMode::Matches,
+            Vec::new(),
+            false,
+            false,
+            Colorizer::new(false),
+            true,
+        );
+
+        output.report(
+            &mut vec![inverted_line_match(1, "no match here")]
+                .into_iter()
+                .peekable(),
+            None,
+        );
+
+        assert_eq!(
+            String::from_utf8(output.writer).unwrap(),
+            "1:no match here\n"
+        );
+    }
+
+    #[test]
     fn matches_mode_reports_matched_even_when_show_header_is_false() {
         let mut output = Output::new(
             OutputMode::Matches,
