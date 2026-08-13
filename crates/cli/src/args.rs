@@ -12,6 +12,7 @@ pub struct Args {
     pub invert_match: bool,
     pub before_context: usize,
     pub after_context: usize,
+    pub only_matching: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,8 +63,9 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
     let mut case_insensitive = false;
     let mut whole_word = false;
     let mut invert_match = false;
-    let mut after_context: usize = 0;
-    let mut before_context: usize = 0;
+    let mut after_context = 0;
+    let mut before_context = 0;
+    let mut only_matching = false;
 
     while let Some(arg) = args.next() {
         if let Some(long) = arg.strip_prefix("--") {
@@ -73,6 +75,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                 "ignore-case" => case_insensitive = true,
                 "word-regexp" => whole_word = true,
                 "invert-match" => invert_match = true,
+                "only-matching" => only_matching = true,
                 "after-context" => {
                     let next = next_arg(args)?;
                     after_context = parse_usize(next)?;
@@ -98,6 +101,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                     'i' => case_insensitive = true,
                     'w' => whole_word = true,
                     'v' => invert_match = true,
+                    'o' => only_matching = true,
                     'A' => {
                         let value = short_flag_value(short, i, c, args)?;
                         after_context = parse_usize(value)?;
@@ -142,6 +146,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
         invert_match,
         before_context,
         after_context,
+        only_matching,
     })
 }
 

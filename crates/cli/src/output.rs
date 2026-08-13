@@ -19,6 +19,7 @@ pub struct Output<W: io::Write> {
     separator_needed: bool,
     show_separator: bool,
     matched: bool,
+    only_matching: bool,
 }
 
 impl<W: io::Write> Output<W> {
@@ -28,6 +29,7 @@ impl<W: io::Write> Output<W> {
         show_header: bool,
         show_separator: bool,
         colorizer: Colorizer,
+        only_matching: bool,
     ) -> Self {
         Self {
             mode,
@@ -37,6 +39,7 @@ impl<W: io::Write> Output<W> {
             separator_needed: false,
             show_separator,
             matched: false,
+            only_matching,
         }
     }
 
@@ -101,9 +104,13 @@ impl<W: io::Write> Output<W> {
                 )
                 .unwrap();
                 let line = line_match.line.trim_end();
-                write!(self.writer, "{}", &line[..start]).unwrap();
-                write!(self.writer, "{}", self.colorizer.matched(&line[start..end])).unwrap();
-                writeln!(self.writer, "{}", &line[end..]).unwrap();
+                if !self.only_matching {
+                    write!(self.writer, "{}", &line[..start]).unwrap();
+                    write!(self.writer, "{}", self.colorizer.matched(&line[start..end])).unwrap();
+                    writeln!(self.writer, "{}", &line[end..]).unwrap();
+                } else {
+                    writeln!(self.writer, "{}", self.colorizer.matched(&line[start..end])).unwrap();
+                }
             } else {
                 writeln!(
                     self.writer,
@@ -178,7 +185,14 @@ mod tests {
         path: Option<&Path>,
         show_header: bool,
     ) -> String {
-        let mut output = Output::new(mode, Vec::new(), show_header, false, Colorizer::new(false));
+        let mut output = Output::new(
+            mode,
+            Vec::new(),
+            show_header,
+            false,
+            Colorizer::new(false),
+            false,
+        );
         output.report(&mut matches.into_iter().peekable(), path);
         String::from_utf8(output.writer).unwrap()
     }
@@ -238,6 +252,7 @@ mod tests {
             false,
             false,
             Colorizer::new(false),
+            false,
         );
 
         output.report(
@@ -256,6 +271,7 @@ mod tests {
             true,
             false,
             Colorizer::new(false),
+            false,
         );
 
         output.report(
@@ -283,6 +299,7 @@ mod tests {
             true,
             false,
             Colorizer::new(false),
+            false,
         );
         let path = Path::new("a.txt");
 
@@ -316,6 +333,7 @@ mod tests {
             false,
             true,
             Colorizer::new(false),
+            false,
         );
         output.report(&mut matches.into_iter().peekable(), None);
 
@@ -335,6 +353,7 @@ mod tests {
             false,
             true,
             Colorizer::new(false),
+            false,
         );
         output.report(&mut matches.into_iter().peekable(), None);
 
@@ -351,6 +370,7 @@ mod tests {
             false,
             false,
             Colorizer::new(false),
+            false,
         );
         output.report(&mut matches.into_iter().peekable(), None);
 
@@ -397,6 +417,7 @@ mod tests {
             false,
             false,
             Colorizer::new(false),
+            false,
         );
 
         output.report(
@@ -415,6 +436,7 @@ mod tests {
             false,
             false,
             Colorizer::new(false),
+            false,
         );
 
         output.report(&mut Vec::new().into_iter().peekable(), None);
@@ -449,6 +471,7 @@ mod tests {
             false,
             false,
             Colorizer::new(false),
+            false,
         );
 
         output.report(
@@ -467,6 +490,7 @@ mod tests {
             false,
             false,
             Colorizer::new(false),
+            false,
         );
 
         output.report(

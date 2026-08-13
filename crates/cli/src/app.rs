@@ -46,6 +46,7 @@ impl App {
             args.output_mode == OutputMode::Matches && root.is_some(),
             args.before_context > 0 || args.after_context > 0,
             Colorizer::from_stdout(),
+            args.only_matching,
         );
 
         Ok(Self {
@@ -168,6 +169,7 @@ mod tests {
             invert_match: false,
             before_context: 0,
             after_context: 0,
+            only_matching: false,
         };
         let regex = RegexBuilder::new(args.pattern.clone()).build().unwrap();
         let gitignore = Rc::new(GitignoreCache::new(PathBuf::new()));
@@ -177,6 +179,7 @@ mod tests {
             false,
             false,
             Colorizer::new(false),
+            false,
         );
 
         if matched {
