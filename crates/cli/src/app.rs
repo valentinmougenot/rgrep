@@ -155,7 +155,79 @@ pub enum RunOutcome {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use search::LineMatch;
     use std::fs;
+
+    fn make_app(matched: bool) -> App {
+        let args = Args {
+            pattern: "x".to_string(),
+            path: None,
+            output_mode: OutputMode::Matches,
+            case_insensitive: false,
+            whole_word: false,
+            invert_match: false,
+            before_context: 0,
+            after_context: 0,
+        };
+        let regex = RegexBuilder::new(args.pattern.clone()).build().unwrap();
+        let gitignore = Rc::new(GitignoreCache::new(PathBuf::new()));
+        let mut output = Output::new(
+            OutputMode::Matches,
+            io::stdout(),
+            false,
+            false,
+            Colorizer::new(false),
+        );
+
+        if matched {
+            output.report(
+                &mut vec![LineMatch {
+                    line_number: 1,
+                    line: "hello".to_string(),
+                    match_span: Some(0..5),
+                    is_context: false,
+                }]
+                .into_iter()
+                .peekable(),
+                None,
+            );
+        }
+
+        App {
+            args,
+            regex,
+            gitignore,
+            output,
+        }
+    }
+
+    #[test]
+    fn run_outcome_is_had_error_when_had_error_is_true_regardless_of_matches() {
+        assert!(matches!(
+            make_app(true).run_outcome(true),
+            RunOutcome::HadError
+        ));
+        assert!(matches!(
+            make_app(false).run_outcome(true),
+            RunOutcome::HadError
+        ));
+    }
+
+    #[test]
+    fn run_outcome_is_matched_when_there_was_no_error_and_output_matched() {
+        assert!(matches!(
+            make_app(true).run_outcome(false),
+            RunOutcome::Matched
+        ));
+    }
+
+    #[test]
+    fn run_outcome_is_no_matches_when_there_was_no_error_and_output_did_not_match() {
+        assert!(matches!(
+            make_app(false).run_outcome(false),
+            RunOutcome::NoMatches
+        ));
+    }
 
     struct TempDir(PathBuf);
 

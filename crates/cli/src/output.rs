@@ -231,6 +231,42 @@ mod tests {
     }
 
     #[test]
+    fn matches_mode_reports_matched_even_when_show_header_is_false() {
+        let mut output = Output::new(
+            OutputMode::Matches,
+            Vec::new(),
+            false,
+            false,
+            Colorizer::new(false),
+        );
+
+        output.report(
+            &mut vec![line_match(1, "hello", 0, 5)].into_iter().peekable(),
+            None,
+        );
+
+        assert!(output.matched());
+    }
+
+    #[test]
+    fn matches_mode_reports_not_matched_when_there_are_no_matches() {
+        let mut output = Output::new(
+            OutputMode::Matches,
+            Vec::new(),
+            true,
+            false,
+            Colorizer::new(false),
+        );
+
+        output.report(
+            &mut Vec::new().into_iter().peekable(),
+            Some(Path::new("a.txt")),
+        );
+
+        assert!(!output.matched());
+    }
+
+    #[test]
     fn matches_mode_prints_the_whole_line_without_highlight_when_match_span_is_none() {
         let matches = vec![inverted_line_match(1, "no match here")];
 
@@ -354,6 +390,39 @@ mod tests {
     }
 
     #[test]
+    fn count_mode_reports_matched_when_there_are_matches() {
+        let mut output = Output::new(
+            OutputMode::Count,
+            Vec::new(),
+            false,
+            false,
+            Colorizer::new(false),
+        );
+
+        output.report(
+            &mut vec![line_match(1, "hello", 0, 5)].into_iter().peekable(),
+            None,
+        );
+
+        assert!(output.matched());
+    }
+
+    #[test]
+    fn count_mode_reports_not_matched_when_there_are_no_matches() {
+        let mut output = Output::new(
+            OutputMode::Count,
+            Vec::new(),
+            false,
+            false,
+            Colorizer::new(false),
+        );
+
+        output.report(&mut Vec::new().into_iter().peekable(), None);
+
+        assert!(!output.matched());
+    }
+
+    #[test]
     fn files_mode_prints_the_path_when_there_are_matches() {
         let matches = vec![line_match(1, "hello", 0, 5), line_match(2, "hello", 0, 5)];
         let path = Path::new("a.txt");
@@ -370,6 +439,42 @@ mod tests {
         let output = report_to_string(OutputMode::Files, vec![], Some(path), false);
 
         assert!(output.is_empty());
+    }
+
+    #[test]
+    fn files_mode_reports_matched_when_there_are_matches() {
+        let mut output = Output::new(
+            OutputMode::Files,
+            Vec::new(),
+            false,
+            false,
+            Colorizer::new(false),
+        );
+
+        output.report(
+            &mut vec![line_match(1, "hello", 0, 5)].into_iter().peekable(),
+            Some(Path::new("a.txt")),
+        );
+
+        assert!(output.matched());
+    }
+
+    #[test]
+    fn files_mode_reports_not_matched_when_there_are_no_matches() {
+        let mut output = Output::new(
+            OutputMode::Files,
+            Vec::new(),
+            false,
+            false,
+            Colorizer::new(false),
+        );
+
+        output.report(
+            &mut Vec::new().into_iter().peekable(),
+            Some(Path::new("a.txt")),
+        );
+
+        assert!(!output.matched());
     }
 
     #[test]
