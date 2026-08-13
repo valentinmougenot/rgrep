@@ -18,6 +18,7 @@ pub struct Output<W: io::Write> {
     show_header: bool,
     separator_needed: bool,
     show_separator: bool,
+    matched: bool,
 }
 
 impl<W: io::Write> Output<W> {
@@ -35,7 +36,12 @@ impl<W: io::Write> Output<W> {
             show_header,
             separator_needed: false,
             show_separator,
+            matched: false,
         }
+    }
+
+    pub fn matched(&self) -> bool {
+        self.matched
     }
 
     pub fn report(
@@ -55,22 +61,25 @@ impl<W: io::Write> Output<W> {
         matches: &mut Peekable<impl Iterator<Item = LineMatch>>,
         path: Option<&Path>,
     ) {
-        if matches.peek().is_some()
-            && self.show_header
-            && let Some(path) = path
-        {
-            if self.separator_needed {
-                writeln!(self.writer).unwrap();
-            } else {
-                self.separator_needed = true;
-            }
+        if matches.peek().is_some() {
+            self.matched = true;
 
-            writeln!(
-                self.writer,
-                "{}",
-                self.colorizer.path(&path.display().to_string())
-            )
-            .unwrap();
+            if self.show_header
+                && let Some(path) = path
+            {
+                if self.separator_needed {
+                    writeln!(self.writer).unwrap();
+                } else {
+                    self.separator_needed = true;
+                }
+
+                writeln!(
+                    self.writer,
+                    "{}",
+                    self.colorizer.path(&path.display().to_string())
+                )
+                .unwrap();
+            }
         }
 
         let mut last_line_number = None;
@@ -122,6 +131,7 @@ impl<W: io::Write> Output<W> {
                 .unwrap();
             }
             writeln!(self.writer, "{}", matches.count()).unwrap();
+            self.matched = true;
         }
     }
 
@@ -135,6 +145,7 @@ impl<W: io::Write> Output<W> {
                 .map(|p| p.display().to_string())
                 .unwrap_or("<stdin>".to_string());
             writeln!(self.writer, "{}", self.colorizer.path(&label)).unwrap();
+            self.matched = true;
         }
     }
 }

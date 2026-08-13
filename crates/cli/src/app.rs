@@ -56,8 +56,8 @@ impl App {
         })
     }
 
-    pub fn run(&mut self) -> AppResult<bool> {
-        let had_error = match self.args.path.clone() {
+    pub fn run(&mut self) -> AppResult<RunOutcome> {
+        return match self.args.path.clone() {
             Some(root) if root.is_dir() => {
                 let mut had_error = false;
 
@@ -74,20 +74,27 @@ impl App {
                         had_error = true;
                     }
                 }
-
-                had_error
+                Ok(self.run_outcome(had_error))
             }
             Some(path) => {
                 self.search_file(&path)?;
-                false
+                Ok(self.run_outcome(false))
             }
             None => {
                 self.search_stdin();
-                false
+                Ok(self.run_outcome(false))
             }
         };
+    }
 
-        Ok(had_error)
+    fn run_outcome(&self, had_error: bool) -> RunOutcome {
+        if had_error {
+            RunOutcome::HadError
+        } else if self.output.matched() {
+            RunOutcome::Matched
+        } else {
+            RunOutcome::NoMatches
+        }
     }
 
     fn search_file(&mut self, path: &Path) -> AppResult<()> {
@@ -137,6 +144,12 @@ impl App {
         let relative = path.strip_prefix(root).unwrap_or(path);
         gitignore.is_ignored(relative, is_dir)
     }
+}
+
+pub enum RunOutcome {
+    Matched,
+    NoMatches,
+    HadError,
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use crate::app::App;
+use crate::app::{App, RunOutcome};
 
 mod app;
 mod args;
@@ -18,11 +18,12 @@ fn main() {
     };
 
     match app.run() {
-        Ok(false) => {}
-        Ok(true) => std::process::exit(2),
+        Ok(RunOutcome::Matched) => {}
+        Ok(RunOutcome::NoMatches) => std::process::exit(1),
+        Ok(RunOutcome::HadError) => std::process::exit(2),
         Err(e) => {
             eprintln!("Error: {}", e);
-            std::process::exit(1);
+            std::process::exit(2);
         }
     }
 }
