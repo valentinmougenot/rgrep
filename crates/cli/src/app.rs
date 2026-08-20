@@ -6,8 +6,8 @@ use std::{
     rc::Rc,
 };
 
-use regex_engine::{Regex, RegexBuilder};
-use search::search;
+use regex_engine::RegexBuilder;
+use search::{LiteralMatcher, Matcher, search};
 
 use crate::{
     args::{Args, parse},
@@ -20,7 +20,7 @@ use crate::{
 
 pub struct App {
     args: Args,
-    regex: Regex,
+    matcher: Box<dyn Matcher>,
     gitignore: Rc<GitignoreCache>,
     output: Output<io::Stdout>,
 }
@@ -28,10 +28,20 @@ pub struct App {
 impl App {
     pub fn new() -> AppResult<Self> {
         let args = parse(&mut std::env::args().skip(1))?;
-        let regex = RegexBuilder::new(args.pattern.clone())
-            .case_insensitive(args.case_insensitive)
-            .whole_word(args.whole_word)
-            .build()?;
+        let matcher: Box<dyn Matcher> = if !args.fixed_strings {
+            Box::new(
+                RegexBuilder::new(args.pattern.clone())
+                    .case_insensitive(args.case_insensitive)
+                    .whole_word(args.whole_word)
+                    .build()?,
+            )
+        } else {
+            Box::new(LiteralMatcher::new(
+                &args.pattern,
+                args.case_insensitive,
+                args.whole_word,
+            ))
+        };
 
         let mut root = None;
         if let Some(ref path) = args.path
@@ -51,7 +61,7 @@ impl App {
 
         Ok(Self {
             args,
-            regex,
+            matcher,
             gitignore,
             output,
         })
@@ -103,7 +113,7 @@ impl App {
         let reader = BufReader::new(file);
 
         let mut matches = search(
-            &self.regex,
+            self.matcher.as_ref(),
             reader,
             self.args.invert_match,
             self.args.before_context,
@@ -121,7 +131,7 @@ impl App {
         let reader = BufReader::new(stdin);
 
         let matches = &mut search(
-            &self.regex,
+            self.matcher.as_ref(),
             reader,
             self.args.invert_match,
             self.args.before_context,
@@ -170,8 +180,10 @@ mod tests {
             before_context: 0,
             after_context: 0,
             only_matching: false,
+            fixed_strings: false,
         };
-        let regex = RegexBuilder::new(args.pattern.clone()).build().unwrap();
+        let matcher: Box<dyn Matcher> =
+            Box::new(RegexBuilder::new(args.pattern.clone()).build().unwrap());
         let gitignore = Rc::new(GitignoreCache::new(PathBuf::new()));
         let mut output = Output::new(
             OutputMode::Matches,
@@ -198,7 +210,7 @@ mod tests {
 
         App {
             args,
-            regex,
+            matcher,
             gitignore,
             output,
         }

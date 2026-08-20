@@ -1,18 +1,16 @@
 use std::{collections::VecDeque, io::BufRead};
 
-use regex_engine::Regex;
+use crate::{Matcher, line_match::LineMatch};
 
-use crate::line_match::LineMatch;
-
-pub fn search<'r, R: BufRead + 'r>(
-    regex: &'r Regex,
+pub fn search<R: BufRead>(
+    matcher: &dyn Matcher,
     reader: R,
     invert_match: bool,
     before_context: usize,
     after_context: usize,
-) -> impl Iterator<Item = LineMatch> + 'r {
+) -> impl Iterator<Item = LineMatch> {
     Matches {
-        regex,
+        matcher,
         line_number: 0,
         reader,
         buf: String::new(),
@@ -25,8 +23,8 @@ pub fn search<'r, R: BufRead + 'r>(
     }
 }
 
-pub struct Matches<'r, R: BufRead> {
-    regex: &'r Regex,
+pub struct Matches<'m, R: BufRead> {
+    matcher: &'m dyn Matcher,
     line_number: usize,
     reader: R,
     buf: String,
@@ -38,7 +36,7 @@ pub struct Matches<'r, R: BufRead> {
     after_remaining: usize,
 }
 
-impl<'r, R: BufRead> Iterator for Matches<'r, R> {
+impl<'m, R: BufRead> Iterator for Matches<'m, R> {
     type Item = LineMatch;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -55,10 +53,8 @@ impl<'r, R: BufRead> Iterator for Matches<'r, R> {
                 return None;
             }
 
-            let maybe_line_match = self.regex.find(&self.buf);
-            let is_hit = maybe_line_match.is_some() != self.invert_match;
-            let match_range =
-                maybe_line_match.map(|line_match| line_match.start()..line_match.end());
+            let match_range = self.matcher.find(&self.buf);
+            let is_hit = match_range.is_some() != self.invert_match;
 
             if is_hit {
                 let match_span = if self.invert_match { None } else { match_range };
