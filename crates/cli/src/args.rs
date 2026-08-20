@@ -337,6 +337,31 @@ mod tests {
     }
 
     #[test]
+    fn default_fixed_strings_is_false() {
+        let args = parse_vec(vec!["ab"]).unwrap();
+        assert!(!args.fixed_strings);
+    }
+
+    #[test]
+    fn short_fixed_strings_flag_sets_fixed_strings() {
+        let args = parse_vec(vec!["-F", "ab"]).unwrap();
+        assert!(args.fixed_strings);
+    }
+
+    #[test]
+    fn long_fixed_strings_flag_sets_fixed_strings() {
+        let args = parse_vec(vec!["--fixed-strings", "ab"]).unwrap();
+        assert!(args.fixed_strings);
+    }
+
+    #[test]
+    fn fixed_strings_can_be_bundled_with_other_short_flags() {
+        let args = parse_vec(vec!["-Fi", "ab"]).unwrap();
+        assert!(args.fixed_strings);
+        assert!(args.case_insensitive);
+    }
+
+    #[test]
     fn default_invert_match_is_false() {
         let args = parse_vec(vec!["ab"]).unwrap();
         assert!(!args.invert_match);
