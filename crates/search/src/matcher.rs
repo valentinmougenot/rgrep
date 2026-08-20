@@ -43,14 +43,14 @@ impl Matcher for LiteralMatcher {
 
         let mut offset = 0;
         loop {
-            let start = text[offset..].find(&self.pattern)?;
+            let start = text[offset..].find(&self.pattern)? + offset;
             let end = start + self.pattern.len();
 
             if !self.whole_word {
                 return Some(start..end);
             }
 
-            if (offset > 0 && text.chars().nth(offset - 1).is_some_and(is_word_char))
+            if (start > 0 && text.chars().nth(start - 1).is_some_and(is_word_char))
                 || text.chars().nth(end).is_some_and(is_word_char)
             {
                 offset = start + 1;
