@@ -161,4 +161,42 @@ mod tests {
         assert_eq!(m.find("a CAT sat"), Some(2..5));
         assert_eq!(m.find("concatenate"), None);
     }
+
+    #[test]
+    fn multi_matcher_returns_none_when_no_matcher_matches() {
+        let m = MultiMatcher::new(vec![
+            Box::new(LiteralMatcher::new("foo", false, false)),
+            Box::new(LiteralMatcher::new("bar", false, false)),
+        ]);
+        assert_eq!(m.find("xyz"), None);
+    }
+
+    #[test]
+    fn multi_matcher_returns_the_only_match_from_a_single_matcher() {
+        let m = MultiMatcher::new(vec![Box::new(LiteralMatcher::new("ab", false, false))]);
+        assert_eq!(m.find("xxabxx"), Some(2..4));
+    }
+
+    #[test]
+    fn multi_matcher_returns_the_leftmost_match_across_matchers() {
+        let m = MultiMatcher::new(vec![
+            Box::new(LiteralMatcher::new("bar", false, false)),
+            Box::new(LiteralMatcher::new("foo", false, false)),
+        ]);
+        assert_eq!(m.find("foo bar"), Some(0..3));
+    }
+
+    #[test]
+    fn multi_matcher_works_with_mixed_matcher_kinds() {
+        let regex = Regex::new("f.o").unwrap();
+        let matchers: Vec<Box<dyn Matcher>> = vec![
+            Box::new(regex),
+            Box::new(LiteralMatcher::new("bar", false, false)),
+        ];
+        let m = MultiMatcher::new(matchers);
+
+        assert_eq!(m.find("xx bar xx"), Some(3..6));
+        assert_eq!(m.find("xx foo xx"), Some(3..6));
+        assert_eq!(m.find("xx baz xx"), None);
+    }
 }

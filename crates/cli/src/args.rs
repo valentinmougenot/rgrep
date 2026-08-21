@@ -388,6 +388,53 @@ mod tests {
     }
 
     #[test]
+    fn short_regexp_flag_sets_a_single_pattern() {
+        let args = parse_vec(vec!["-e", "foo", "file.txt"]).unwrap();
+        assert_eq!(args.patterns, vec!["foo"]);
+        assert_eq!(args.path, Some(PathBuf::from("file.txt")));
+    }
+
+    #[test]
+    fn long_regexp_flag_sets_a_single_pattern() {
+        let args = parse_vec(vec!["--regexp", "foo", "file.txt"]).unwrap();
+        assert_eq!(args.patterns, vec!["foo"]);
+        assert_eq!(args.path, Some(PathBuf::from("file.txt")));
+    }
+
+    #[test]
+    fn repeated_regexp_flags_accumulate_patterns() {
+        let args = parse_vec(vec!["-e", "foo", "-e", "bar", "file.txt"]).unwrap();
+        assert_eq!(args.patterns, vec!["foo", "bar"]);
+        assert_eq!(args.path, Some(PathBuf::from("file.txt")));
+    }
+
+    #[test]
+    fn no_positional_pattern_is_required_when_regexp_flag_is_used() {
+        let args = parse_vec(vec!["-e", "foo"]).unwrap();
+        assert_eq!(args.patterns, vec!["foo"]);
+        assert_eq!(args.path, None);
+    }
+
+    #[test]
+    fn regexp_flag_can_be_bundled_with_other_short_flags() {
+        let args = parse_vec(vec!["-ie", "foo"]).unwrap();
+        assert!(args.case_insensitive);
+        assert_eq!(args.patterns, vec!["foo"]);
+    }
+
+    #[test]
+    fn regexp_flag_without_a_value_is_unexpected_eoi() {
+        let err = parse_vec(vec!["-e"]).unwrap_err();
+        assert_eq!(err.kind, ArgsErrorKind::UnexpectedEOI);
+    }
+
+    #[test]
+    fn regexp_flag_with_an_attached_value_is_unexpected() {
+        let err = parse_vec(vec!["-efoo", "file.txt"]).unwrap_err();
+        assert_eq!(err.kind, ArgsErrorKind::UnexpectedArgument("foo".into()));
+    }
+
+    #[test]
     fn default_invert_match_is_false() {
         let args = parse_vec(vec!["ab"]).unwrap();
         assert!(!args.invert_match);

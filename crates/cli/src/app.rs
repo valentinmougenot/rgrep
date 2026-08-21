@@ -262,6 +262,44 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn build_matcher_returns_a_regex_matcher_by_default() {
+        let args = args_with_patterns(vec!["ab"]);
+        let matcher = build_matcher("ab", &args).unwrap();
+        assert_eq!(matcher.find("xxabxx"), Some(2..4));
+    }
+
+    #[test]
+    fn build_matcher_returns_a_literal_matcher_when_fixed_strings_is_set() {
+        let mut args = args_with_patterns(vec!["a.c"]);
+        args.fixed_strings = true;
+        let matcher = build_matcher("a.c", &args).unwrap();
+        assert_eq!(matcher.find("abc"), None);
+        assert_eq!(matcher.find("xxa.cxx"), Some(2..5));
+    }
+
+    #[test]
+    fn build_matcher_propagates_invalid_regex_errors() {
+        let args = args_with_patterns(vec!["("]);
+        assert!(build_matcher("(", &args).is_err());
+    }
+
+    #[test]
+    fn create_matcher_from_args_matches_any_of_multiple_patterns() {
+        let args = args_with_patterns(vec!["foo", "bar"]);
+        let matcher = create_matcher_from_args(&args).unwrap();
+
+        assert_eq!(matcher.find("xx bar xx"), Some(3..6));
+        assert_eq!(matcher.find("xx foo xx"), Some(3..6));
+        assert_eq!(matcher.find("xx baz xx"), None);
+    }
+
+    #[test]
+    fn create_matcher_from_args_propagates_parse_errors() {
+        let args = args_with_patterns(vec!["("]);
+        assert!(create_matcher_from_args(&args).is_err());
+    }
+
     struct TempDir(PathBuf);
 
     impl TempDir {
