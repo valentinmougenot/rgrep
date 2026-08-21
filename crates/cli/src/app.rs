@@ -6,8 +6,8 @@ use std::{
     rc::Rc,
 };
 
-use regex_engine::RegexBuilder;
-use search::{LiteralMatcher, Matcher, search};
+use regex_engine::{ParseError, RegexBuilder};
+use search::{LiteralMatcher, Matcher, MultiMatcher, search};
 
 use crate::{
     args::{Args, parse},
@@ -28,20 +28,7 @@ pub struct App {
 impl App {
     pub fn new() -> AppResult<Self> {
         let args = parse(&mut std::env::args().skip(1))?;
-        let matcher: Box<dyn Matcher> = if !args.fixed_strings {
-            Box::new(
-                RegexBuilder::new(args.pattern.clone())
-                    .case_insensitive(args.case_insensitive)
-                    .whole_word(args.whole_word)
-                    .build()?,
-            )
-        } else {
-            Box::new(LiteralMatcher::new(
-                &args.pattern,
-                args.case_insensitive,
-                args.whole_word,
-            ))
-        };
+        let matcher = create_matcher_from_args(&args)?;
 
         let mut root = None;
         if let Some(ref path) = args.path
@@ -68,7 +55,7 @@ impl App {
     }
 
     pub fn run(&mut self) -> AppResult<RunOutcome> {
-        return match self.args.path.clone() {
+        match self.args.path.clone() {
             Some(root) if root.is_dir() => {
                 let mut had_error = false;
 
@@ -95,7 +82,7 @@ impl App {
                 self.search_stdin();
                 Ok(self.run_outcome(false))
             }
-        };
+        }
     }
 
     fn run_outcome(&self, had_error: bool) -> RunOutcome {
@@ -157,6 +144,33 @@ impl App {
     }
 }
 
+fn create_matcher_from_args(args: &Args) -> AppResult<Box<dyn Matcher>> {
+    let matchers = args
+        .patterns
+        .iter()
+        .map(|pattern| build_matcher(pattern, args))
+        .collect::<Result<Vec<Box<dyn Matcher>>, ParseError>>()?;
+
+    Ok(Box::new(MultiMatcher::new(matchers)))
+}
+
+fn build_matcher(pattern: &str, args: &Args) -> Result<Box<dyn Matcher>, ParseError> {
+    if args.fixed_strings {
+        return Ok(Box::new(LiteralMatcher::new(
+            pattern,
+            args.case_insensitive,
+            args.whole_word,
+        )));
+    }
+
+    Ok(Box::new(
+        RegexBuilder::new(pattern.to_string())
+            .case_insensitive(args.case_insensitive)
+            .whole_word(args.whole_word)
+            .build()?,
+    ))
+}
+
 pub enum RunOutcome {
     Matched,
     NoMatches,
@@ -169,9 +183,9 @@ mod tests {
     use search::LineMatch;
     use std::fs;
 
-    fn make_app(matched: bool) -> App {
-        let args = Args {
-            pattern: "x".to_string(),
+    fn args_with_patterns(patterns: Vec<&str>) -> Args {
+        Args {
+            patterns: patterns.into_iter().map(String::from).collect(),
             path: None,
             output_mode: OutputMode::Matches,
             case_insensitive: false,
@@ -181,9 +195,13 @@ mod tests {
             after_context: 0,
             only_matching: false,
             fixed_strings: false,
-        };
+        }
+    }
+
+    fn make_app(matched: bool) -> App {
+        let args = args_with_patterns(vec!["x"]);
         let matcher: Box<dyn Matcher> =
-            Box::new(RegexBuilder::new(args.pattern.clone()).build().unwrap());
+            Box::new(RegexBuilder::new(args.patterns[0].clone()).build().unwrap());
         let gitignore = Rc::new(GitignoreCache::new(PathBuf::new()));
         let mut output = Output::new(
             OutputMode::Matches,

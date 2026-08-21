@@ -4,7 +4,7 @@ use crate::output::OutputMode;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Args {
-    pub pattern: String,
+    pub patterns: Vec<String>,
     pub path: Option<PathBuf>,
     pub output_mode: OutputMode,
     pub case_insensitive: bool,
@@ -60,6 +60,7 @@ impl Display for ArgsError {
 
 pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError> {
     let mut positionals = Vec::new();
+    let mut patterns = Vec::new();
     let mut output_mode = OutputMode::Matches;
     let mut case_insensitive = false;
     let mut whole_word = false;
@@ -79,6 +80,10 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                 "invert-match" => invert_match = true,
                 "only-matching" => only_matching = true,
                 "fixed-strings" => fixed_strings = true,
+                "regexp" => {
+                    let pattern = next_arg(args)?;
+                    patterns.push(pattern);
+                }
                 "after-context" => {
                     let next = next_arg(args)?;
                     after_context = parse_usize(next)?;
@@ -106,6 +111,11 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                     'v' => invert_match = true,
                     'o' => only_matching = true,
                     'F' => fixed_strings = true,
+                    'e' => {
+                        let pattern = short_flag_next_arg(short, i, c, args)?;
+                        patterns.push(pattern);
+                        break;
+                    }
                     'A' => {
                         let value = short_flag_value(short, i, c, args)?;
                         after_context = parse_usize(value)?;
@@ -134,7 +144,9 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
 
     let mut positionals = positionals.into_iter();
 
-    let pattern = positionals.next().ok_or(ArgsError::missing_pattern())?;
+    if patterns.is_empty() {
+        patterns.push(positionals.next().ok_or(ArgsError::missing_pattern())?);
+    }
     let path = positionals.next().map(PathBuf::from);
 
     if let Some(arg) = positionals.next() {
@@ -142,7 +154,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
     }
 
     Ok(Args {
-        pattern,
+        patterns,
         path,
         output_mode,
         case_insensitive,
@@ -177,6 +189,20 @@ fn short_flag_value(
     }
 }
 
+fn short_flag_next_arg(
+    short: &str,
+    pos: usize,
+    c: char,
+    args: &mut impl Iterator<Item = String>,
+) -> Result<String, ArgsError> {
+    let rest = &short[pos + c.len_utf8()..];
+    if rest.is_empty() {
+        next_arg(args)
+    } else {
+        Err(ArgsError::unexpected(rest.to_string()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,14 +214,14 @@ mod tests {
     #[test]
     fn pattern_only() {
         let args = parse_vec(vec!["ab"]).unwrap();
-        assert_eq!(args.pattern, "ab");
+        assert_eq!(args.patterns, vec!["ab"]);
         assert_eq!(args.path, None);
     }
 
     #[test]
     fn pattern_and_path() {
         let args = parse_vec(vec!["ab", "file.txt"]).unwrap();
-        assert_eq!(args.pattern, "ab");
+        assert_eq!(args.patterns, vec!["ab"]);
         assert_eq!(args.path, Some(PathBuf::from("file.txt")));
     }
 

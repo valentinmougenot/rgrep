@@ -65,6 +65,25 @@ fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
+pub struct MultiMatcher {
+    matchers: Vec<Box<dyn Matcher>>,
+}
+
+impl MultiMatcher {
+    pub fn new(matchers: Vec<Box<dyn Matcher>>) -> Self {
+        Self { matchers }
+    }
+}
+
+impl Matcher for MultiMatcher {
+    fn find(&self, text: &str) -> Option<Range<usize>> {
+        self.matchers
+            .iter()
+            .filter_map(|m| m.find(text))
+            .min_by_key(|range| range.start)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -3,5 +3,5 @@ mod matcher;
 mod searcher;
 
 pub use line_match::LineMatch;
-pub use matcher::{LiteralMatcher, Matcher};
+pub use matcher::{LiteralMatcher, Matcher, MultiMatcher};
 pub use searcher::search;
