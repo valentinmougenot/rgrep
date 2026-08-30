@@ -4,6 +4,23 @@ use regex_engine::Regex;
 
 pub trait Matcher {
     fn find(&self, text: &str) -> Option<Range<usize>>;
+    fn find_all(&self, text: &str) -> Vec<Range<usize>> {
+        let mut result = Vec::new();
+        let mut offset = 0;
+
+        while offset <= text.len() {
+            let Some(relative) = self.find(&text[offset..]) else {
+                break;
+            };
+            let start = offset + relative.start;
+            let end = offset + relative.end;
+
+            result.push(start..end);
+            offset = if end > start { end } else { end + 1 };
+        }
+
+        result
+    }
 }
 
 impl Matcher for Regex {

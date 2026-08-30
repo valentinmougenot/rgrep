@@ -214,10 +214,11 @@ mod tests {
 
         if matched {
             output.report(
+                #[allow(clippy::single_range_in_vec_init)]
                 &mut vec![LineMatch {
                     line_number: 1,
                     line: "hello".to_string(),
-                    match_span: Some(0..5),
+                    match_spans: vec![0..5],
                     is_context: false,
                 }]
                 .into_iter()

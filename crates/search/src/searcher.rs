@@ -53,18 +53,22 @@ impl<'m, R: BufRead> Iterator for Matches<'m, R> {
                 return None;
             }
 
-            let match_range = self.matcher.find(&self.buf);
-            let is_hit = match_range.is_some() != self.invert_match;
+            let match_ranges = self.matcher.find_all(&self.buf);
+            let is_hit = match_ranges.is_empty() == self.invert_match;
 
             if is_hit {
-                let match_span = if self.invert_match { None } else { match_range };
+                let match_spans = if self.invert_match {
+                    Vec::new()
+                } else {
+                    match_ranges
+                };
                 let before_buffer = std::mem::take(&mut self.before_buffer);
 
                 for (line_number, line) in before_buffer {
                     self.pending.push_back(LineMatch {
                         line_number,
                         line,
-                        match_span: None,
+                        match_spans: Vec::new(),
                         is_context: true,
                     });
                 }
@@ -72,7 +76,7 @@ impl<'m, R: BufRead> Iterator for Matches<'m, R> {
                 self.pending.push_back(LineMatch {
                     line_number: self.line_number,
                     line: std::mem::take(&mut self.buf),
-                    match_span,
+                    match_spans,
                     is_context: false,
                 });
                 self.after_remaining = self.after_context;
@@ -80,7 +84,7 @@ impl<'m, R: BufRead> Iterator for Matches<'m, R> {
                 self.pending.push_back(LineMatch {
                     line_number: self.line_number,
                     line: std::mem::take(&mut self.buf),
-                    match_span: None,
+                    match_spans: Vec::new(),
                     is_context: true,
                 });
                 self.after_remaining -= 1;
@@ -139,7 +143,7 @@ mod tests {
         let re = Regex::new("ab").unwrap();
         let matches: Vec<LineMatch> = search(&re, "xxabxx".as_bytes(), false, 0, 0).collect();
 
-        assert_eq!(matches[0].match_span, Some(2..4));
+        assert_eq!(matches[0].match_spans, vec![2..4]);
     }
 
     #[test]
@@ -182,7 +186,7 @@ mod tests {
     fn invert_match_span_is_none() {
         let re = Regex::new("ab").unwrap();
         let matches: Vec<LineMatch> = search(&re, "no match".as_bytes(), true, 0, 0).collect();
-        assert_eq!(matches[0].match_span, None);
+        assert!(matches[0].match_spans.is_empty());
     }
 
     #[test]

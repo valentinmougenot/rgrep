@@ -1,4 +1,4 @@
-use std::{io, iter::Peekable, path::Path};
+use std::{io, iter::Peekable, ops::Range, path::Path};
 
 use search::LineMatch;
 
@@ -96,29 +96,63 @@ impl<W: io::Write> Output<W> {
             }
             last_line_number = Some(line_match.line_number);
 
-            if let Some(std::ops::Range { start, end }) = line_match.match_span {
+            let line = line_match.line.trim_end();
+
+            if line_match.match_spans.is_empty() {
                 write!(
                     self.writer,
                     "{}:",
                     self.colorizer.line_number(line_match.line_number)
                 )
                 .unwrap();
-                let line = line_match.line.trim_end();
-                if !self.only_matching {
-                    write!(self.writer, "{}", &line[..start]).unwrap();
-                    write!(self.writer, "{}", self.colorizer.matched(&line[start..end])).unwrap();
-                    writeln!(self.writer, "{}", &line[end..]).unwrap();
-                } else {
-                    writeln!(self.writer, "{}", self.colorizer.matched(&line[start..end])).unwrap();
-                }
-            } else {
-                writeln!(
+                writeln!(self.writer, "{}", line).unwrap();
+                continue;
+            }
+
+            if !self.only_matching {
+                write!(
                     self.writer,
-                    "{}:{}",
-                    self.colorizer.line_number(line_match.line_number),
-                    line_match.line.trim_end()
+                    "{}:",
+                    self.colorizer.line_number(line_match.line_number)
                 )
                 .unwrap();
+            }
+
+            let mut last_end = 0;
+
+            for Range { start, end } in &line_match.match_spans {
+                if self.only_matching {
+                    write!(
+                        self.writer,
+                        "{}:",
+                        self.colorizer.line_number(line_match.line_number)
+                    )
+                    .unwrap();
+                    writeln!(
+                        self.writer,
+                        "{}",
+                        self.colorizer.matched(&line[*start..*end])
+                    )
+                    .unwrap();
+                    continue;
+                }
+
+                if last_end < *start && !self.only_matching {
+                    write!(self.writer, "{}", &line[last_end..*start]).unwrap();
+                }
+                write!(
+                    self.writer,
+                    "{}",
+                    self.colorizer.matched(&line[*start..*end])
+                )
+                .unwrap();
+                last_end = *end;
+            }
+
+            if last_end < line.len() && !self.only_matching {
+                writeln!(self.writer, "{}", &line[last_end..]).unwrap();
+            } else if !self.only_matching {
+                writeln!(self.writer).unwrap();
             }
         }
     }
@@ -162,10 +196,11 @@ mod tests {
     use super::*;
 
     fn line_match(line_number: usize, line: &str, start: usize, end: usize) -> LineMatch {
+        #[allow(clippy::single_range_in_vec_init)]
         LineMatch {
             line_number,
             line: line.to_string(),
-            match_span: Some(start..end),
+            match_spans: vec![start..end],
             is_context: false,
         }
     }
@@ -174,7 +209,7 @@ mod tests {
         LineMatch {
             line_number,
             line: line.to_string(),
-            match_span: None,
+            match_spans: Vec::new(),
             is_context: false,
         }
     }
