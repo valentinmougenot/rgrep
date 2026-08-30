@@ -147,6 +147,14 @@ mod tests {
     }
 
     #[test]
+    fn reports_every_match_span_when_a_line_has_multiple_matches() {
+        let re = Regex::new("ab").unwrap();
+        let matches: Vec<LineMatch> = search(&re, "ab ab ab".as_bytes(), false, 0, 0).collect();
+
+        assert_eq!(matches[0].match_spans, vec![0..2, 3..5, 6..8]);
+    }
+
+    #[test]
     fn line_includes_the_trailing_newline_except_on_the_last_line() {
         let re = Regex::new("ab").unwrap();
         let matches: Vec<LineMatch> = search(&re, "ab\nab".as_bytes(), false, 0, 0).collect();

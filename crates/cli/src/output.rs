@@ -205,6 +205,15 @@ mod tests {
         }
     }
 
+    fn multi_line_match(line_number: usize, line: &str, spans: Vec<Range<usize>>) -> LineMatch {
+        LineMatch {
+            line_number,
+            line: line.to_string(),
+            match_spans: spans,
+            is_context: false,
+        }
+    }
+
     fn inverted_line_match(line_number: usize, line: &str) -> LineMatch {
         LineMatch {
             line_number,
@@ -343,6 +352,55 @@ mod tests {
             String::from_utf8(output.writer).unwrap(),
             "1:no match here\n"
         );
+    }
+
+    #[test]
+    fn matches_mode_highlights_every_match_on_the_same_line() {
+        let matches = vec![multi_line_match(1, "fn foo fn bar", vec![0..2, 7..9])];
+
+        let output = report_to_string(OutputMode::Matches, matches, None, false);
+
+        assert_eq!(output, "1:fn foo fn bar\n");
+    }
+
+    #[test]
+    fn matches_mode_does_not_drop_a_single_character_gap_between_two_matches() {
+        let matches = vec![multi_line_match(1, "a b", vec![0..1, 2..3])];
+
+        let output = report_to_string(OutputMode::Matches, matches, None, false);
+
+        assert_eq!(output, "1:a b\n");
+    }
+
+    #[test]
+    fn matches_mode_does_not_drop_a_single_trailing_character() {
+        #[allow(clippy::single_range_in_vec_init)]
+        let matches = vec![multi_line_match(1, "ab", vec![0..1])];
+
+        let output = report_to_string(OutputMode::Matches, matches, None, false);
+
+        assert_eq!(output, "1:ab\n");
+    }
+
+    #[test]
+    fn matches_mode_with_only_matching_prints_one_line_per_match_on_the_same_source_line() {
+        let mut output = Output::new(
+            OutputMode::Matches,
+            Vec::new(),
+            false,
+            false,
+            Colorizer::new(false),
+            true,
+        );
+
+        output.report(
+            &mut vec![multi_line_match(1, "fn foo fn bar", vec![0..2, 7..9])]
+                .into_iter()
+                .peekable(),
+            None,
+        );
+
+        assert_eq!(String::from_utf8(output.writer).unwrap(), "1:fn\n1:fn\n");
     }
 
     #[test]

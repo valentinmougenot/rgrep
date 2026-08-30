@@ -216,4 +216,44 @@ mod tests {
         assert_eq!(m.find("xx foo xx"), Some(3..6));
         assert_eq!(m.find("xx baz xx"), None);
     }
+
+    #[test]
+    fn find_all_returns_an_empty_vec_when_there_is_no_match() {
+        let re = Regex::new("ab").unwrap();
+        assert_eq!(re.find_all("xyz"), Vec::<Range<usize>>::new());
+    }
+
+    #[test]
+    fn find_all_returns_every_non_overlapping_match_in_order() {
+        let re = Regex::new("ab").unwrap();
+        assert_eq!(re.find_all("ab xx ab ab"), vec![0..2, 6..8, 9..11]);
+    }
+
+    #[test]
+    fn find_all_forces_progress_on_a_zero_length_match() {
+        let re = Regex::new("a*").unwrap();
+        // "a*" accepts the empty string immediately at every position, so
+        // every match here is zero-length; each one must still advance the
+        // offset by at least one byte or this loops forever.
+        assert_eq!(re.find_all("ab"), vec![0..0, 1..1, 2..2]);
+    }
+
+    #[test]
+    fn find_all_works_for_literal_matcher() {
+        let m = LiteralMatcher::new("cat", false, true);
+        assert_eq!(
+            m.find_all("concatenate cat here cat"),
+            vec![12..15, 21..24]
+        );
+    }
+
+    #[test]
+    fn find_all_uses_the_leftmost_match_from_each_matcher_in_multi_matcher() {
+        let m = MultiMatcher::new(vec![
+            Box::new(LiteralMatcher::new("foo", false, false)),
+            Box::new(LiteralMatcher::new("bar", false, false)),
+        ]);
+
+        assert_eq!(m.find_all("foo xx bar xx foo"), vec![0..3, 7..10, 14..17]);
+    }
 }
