@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use regex_engine::Regex;
 
-pub trait Matcher {
+pub trait Matcher: Send + Sync {
     fn find(&self, text: &str) -> Option<Range<usize>>;
     fn find_all(&self, text: &str) -> Vec<Range<usize>> {
         let mut result = Vec::new();
@@ -241,10 +241,7 @@ mod tests {
     #[test]
     fn find_all_works_for_literal_matcher() {
         let m = LiteralMatcher::new("cat", false, true);
-        assert_eq!(
-            m.find_all("concatenate cat here cat"),
-            vec![12..15, 21..24]
-        );
+        assert_eq!(m.find_all("concatenate cat here cat"), vec![12..15, 21..24]);
     }
 
     #[test]

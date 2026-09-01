@@ -4,6 +4,7 @@ use std::{
     io::{self, BufReader},
     path::{Path, PathBuf},
     rc::Rc,
+    sync::{Arc, mpsc},
 };
 
 use regex_engine::{ParseError, RegexBuilder};
@@ -15,12 +16,13 @@ use crate::{
     error::{AppError, AppResult},
     gitignore::GitignoreCache,
     output::{Output, OutputMode},
+    pool,
     walk::walk,
 };
 
 pub struct App {
     args: Args,
-    matcher: Box<dyn Matcher>,
+    matcher: Arc<dyn Matcher>,
     gitignore: Rc<GitignoreCache>,
     output: Output<io::Stdout>,
 }
@@ -60,18 +62,48 @@ impl App {
                 let mut had_error = false;
 
                 let gitignore = self.gitignore.clone();
+
+                let (paths_tx, paths_rx) = mpsc::channel();
+                let (results, handles) = pool::search_files(
+                    paths_rx,
+                    Arc::clone(&self.matcher),
+                    self.args.invert_match,
+                    self.args.before_context,
+                    self.args.after_context,
+                    self.args.threads_count,
+                );
+
                 for entry in walk(&root, |path, is_dir| {
                     Self::should_skip_path(path, is_dir, &root, &gitignore)
                 }) {
-                    let result = entry
-                        .map_err(AppError::from)
-                        .and_then(|file_path| self.search_file(&file_path));
+                    match entry {
+                        Ok(path) => paths_tx.send(path).unwrap(),
+                        Err(e) => {
+                            eprintln!("{}", AppError::from(e));
+                            had_error = true;
+                        }
+                    }
+                }
+                drop(paths_tx);
 
-                    if let Err(e) = result {
-                        eprintln!("{}", e);
+                for file_result in results {
+                    match file_result.matches {
+                        Ok(matches) => self
+                            .output
+                            .report(&mut matches.into_iter().peekable(), Some(&file_result.path)),
+                        Err(e) => {
+                            eprintln!("{}", e);
+                            had_error = true;
+                        }
+                    }
+                }
+
+                for handle in handles {
+                    if handle.join().is_err() {
                         had_error = true;
                     }
                 }
+
                 Ok(self.run_outcome(had_error))
             }
             Some(path) => {
@@ -144,14 +176,14 @@ impl App {
     }
 }
 
-fn create_matcher_from_args(args: &Args) -> AppResult<Box<dyn Matcher>> {
+fn create_matcher_from_args(args: &Args) -> AppResult<Arc<dyn Matcher>> {
     let matchers = args
         .patterns
         .iter()
         .map(|pattern| build_matcher(pattern, args))
         .collect::<Result<Vec<Box<dyn Matcher>>, ParseError>>()?;
 
-    Ok(Box::new(MultiMatcher::new(matchers)))
+    Ok(Arc::new(MultiMatcher::new(matchers)))
 }
 
 fn build_matcher(pattern: &str, args: &Args) -> Result<Box<dyn Matcher>, ParseError> {
@@ -195,13 +227,14 @@ mod tests {
             after_context: 0,
             only_matching: false,
             fixed_strings: false,
+            threads_count: None,
         }
     }
 
     fn make_app(matched: bool) -> App {
         let args = args_with_patterns(vec!["x"]);
-        let matcher: Box<dyn Matcher> =
-            Box::new(RegexBuilder::new(args.patterns[0].clone()).build().unwrap());
+        let matcher: Arc<dyn Matcher> =
+            Arc::new(RegexBuilder::new(args.patterns[0].clone()).build().unwrap());
         let gitignore = Rc::new(GitignoreCache::new(PathBuf::new()));
         let mut output = Output::new(
             OutputMode::Matches,

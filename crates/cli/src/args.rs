@@ -14,6 +14,7 @@ pub struct Args {
     pub after_context: usize,
     pub only_matching: bool,
     pub fixed_strings: bool,
+    pub threads_count: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,6 +70,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
     let mut before_context = 0;
     let mut only_matching = false;
     let mut fixed_strings = false;
+    let mut threads_count = None;
 
     while let Some(arg) = args.next() {
         if let Some(long) = arg.strip_prefix("--") {
@@ -96,6 +98,10 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                     let next = next_arg(args)?;
                     after_context = parse_usize(next)?;
                     before_context = after_context;
+                }
+                "threads" => {
+                    let next = next_arg(args)?;
+                    threads_count = Some(parse_usize(next)?);
                 }
                 _ => {
                     return Err(ArgsError::unexpected(arg));
@@ -132,6 +138,11 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
                         before_context = after_context;
                         break;
                     }
+                    'j' => {
+                        let value = short_flag_value(short, i, c, args)?;
+                        threads_count = Some(parse_usize(value)?);
+                        break;
+                    }
                     _ => {
                         return Err(ArgsError::unexpected(arg));
                     }
@@ -164,6 +175,7 @@ pub fn parse(args: &mut impl Iterator<Item = String>) -> Result<Args, ArgsError>
         after_context,
         only_matching,
         fixed_strings,
+        threads_count,
     })
 }
 

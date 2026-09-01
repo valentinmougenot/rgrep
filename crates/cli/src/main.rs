@@ -6,6 +6,7 @@ mod colorizer;
 mod error;
 mod gitignore;
 mod output;
+mod pool;
 mod walk;
 
 fn main() {
