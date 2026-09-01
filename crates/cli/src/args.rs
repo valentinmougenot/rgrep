@@ -560,4 +560,59 @@ mod tests {
         assert!(args.case_insensitive);
         assert_eq!(args.after_context, 2);
     }
+
+    #[test]
+    fn default_threads_count_is_none() {
+        let args = parse_vec(vec!["ab"]).unwrap();
+        assert_eq!(args.threads_count, None);
+    }
+
+    #[test]
+    fn long_threads_flag_sets_threads_count() {
+        let args = parse_vec(vec!["--threads", "4", "ab"]).unwrap();
+        assert_eq!(args.threads_count, Some(4));
+    }
+
+    #[test]
+    fn long_threads_flag_without_a_value_is_unexpected_eoi() {
+        let err = parse_vec(vec!["--threads"]).unwrap_err();
+        assert_eq!(err.kind, ArgsErrorKind::UnexpectedEOI);
+    }
+
+    #[test]
+    fn long_threads_flag_with_a_non_numeric_value_is_unexpected() {
+        let err = parse_vec(vec!["--threads", "x", "ab"]).unwrap_err();
+        assert_eq!(err.kind, ArgsErrorKind::UnexpectedArgument("x".into()));
+    }
+
+    #[test]
+    fn short_threads_flag_with_a_separate_value_sets_threads_count() {
+        let args = parse_vec(vec!["-j", "4", "ab"]).unwrap();
+        assert_eq!(args.threads_count, Some(4));
+    }
+
+    #[test]
+    fn short_threads_flag_with_an_attached_value_sets_threads_count() {
+        let args = parse_vec(vec!["-j4", "ab"]).unwrap();
+        assert_eq!(args.threads_count, Some(4));
+    }
+
+    #[test]
+    fn short_threads_flag_without_a_value_is_unexpected_eoi() {
+        let err = parse_vec(vec!["-j"]).unwrap_err();
+        assert_eq!(err.kind, ArgsErrorKind::UnexpectedEOI);
+    }
+
+    #[test]
+    fn short_threads_flag_with_a_non_numeric_attached_value_is_unexpected() {
+        let err = parse_vec(vec!["-jx", "ab"]).unwrap_err();
+        assert_eq!(err.kind, ArgsErrorKind::UnexpectedArgument("x".into()));
+    }
+
+    #[test]
+    fn short_threads_flag_can_be_bundled_after_other_short_flags() {
+        let args = parse_vec(vec!["-ij4", "ab"]).unwrap();
+        assert!(args.case_insensitive);
+        assert_eq!(args.threads_count, Some(4));
+    }
 }
