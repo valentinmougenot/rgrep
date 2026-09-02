@@ -4,34 +4,58 @@ use crate::{
     compiler::Compiler,
     nfa::Nfa,
     parser::Parser,
+    prefilter::required_literal,
     vm::{find, is_match},
 };
 
 pub struct Regex {
     nfa: Nfa,
     case_insensitive: bool,
+    prefilter: Option<String>,
 }
 
 impl Regex {
     pub fn new(pattern: &str) -> Result<Self, ParseError> {
         let mut parser = Parser::new(pattern);
         let ast = parser.parse()?;
+        let prefilter = required_literal(&ast);
         let compiler = Compiler::new();
         let nfa = compiler.build(&ast);
 
         Ok(Self {
             nfa,
             case_insensitive: false,
+            prefilter,
         })
     }
 
     pub fn is_match(&self, text: &str) -> bool {
+        if !self.apply_prefilter(text) {
+            return false;
+        }
+
         is_match(&self.nfa, text, self.case_insensitive)
     }
 
     pub fn find<'t>(&self, text: &'t str) -> Option<Match<'t>> {
+        if !self.apply_prefilter(text) {
+            return None;
+        }
+
         let (start, end) = find(&self.nfa, text, self.case_insensitive)?;
         Some(Match { text, start, end })
+    }
+
+    fn apply_prefilter(&self, text: &str) -> bool {
+        if let Some(prefilter) = &self.prefilter {
+            if (self.case_insensitive && !text.to_lowercase().contains(&prefilter.to_lowercase()))
+                || (!self.case_insensitive && !text.contains(prefilter))
+            {
+                return false;
+            }
+        }
+
+        true
     }
 }
 
@@ -87,6 +111,7 @@ impl RegexBuilder {
         if self.whole_word {
             ast = Ast::Concat(vec![Ast::WordStart, ast, Ast::WordEnd]);
         }
+        let prefilter = required_literal(&ast);
 
         let compiler = Compiler::new();
         let nfa = compiler.build(&ast);
@@ -94,6 +119,7 @@ impl RegexBuilder {
         Ok(Regex {
             nfa,
             case_insensitive: self.case_insensitive,
+            prefilter,
         })
     }
 }
