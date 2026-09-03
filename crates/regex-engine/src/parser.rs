@@ -20,7 +20,12 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_alternation(&mut self) -> Result<Ast, ParseError> {
-        let mut items = vec![self.parse_concat()?];
+        let concat = self.parse_concat()?;
+        if !self.scanner.peek().is_some_and(|c| c == '|') {
+            return Ok(concat);
+        }
+
+        let mut items = vec![concat];
         while self.scanner.peek().is_some_and(|c| c == '|') {
             self.scanner.bump();
             items.push(self.parse_concat()?);
@@ -233,17 +238,17 @@ mod tests {
 
     #[test]
     fn parses_single_literal() {
-        assert_eq!(parse("a"), Ok(alt(vec![concat(vec![lit('a')])])));
+        assert_eq!(parse("a"), Ok(concat(vec![lit('a')])));
     }
 
     #[test]
     fn parses_concat_of_literals() {
-        assert_eq!(parse("ab"), Ok(alt(vec![concat(vec![lit('a'), lit('b')])])));
+        assert_eq!(parse("ab"), Ok(concat(vec![lit('a'), lit('b')])));
     }
 
     #[test]
     fn parses_empty_pattern_as_empty_concat() {
-        assert_eq!(parse(""), Ok(alt(vec![concat(vec![])])));
+        assert_eq!(parse(""), Ok(concat(vec![])));
     }
 
     #[test]
@@ -268,18 +273,14 @@ mod tests {
 
     #[test]
     fn parses_dot() {
-        assert_eq!(parse("."), Ok(alt(vec![concat(vec![Ast::Dot])])));
+        assert_eq!(parse("."), Ok(concat(vec![Ast::Dot])));
     }
 
     #[test]
     fn parses_anchors() {
         assert_eq!(
             parse("^a$"),
-            Ok(alt(vec![concat(vec![
-                Ast::StartAnchor,
-                lit('a'),
-                Ast::EndAnchor
-            ])]))
+            Ok(concat(vec![Ast::StartAnchor, lit('a'), Ast::EndAnchor]))
         );
     }
 
@@ -292,10 +293,10 @@ mod tests {
         ] {
             assert_eq!(
                 parse(op),
-                Ok(alt(vec![concat(vec![Ast::Repetition {
+                Ok(concat(vec![Ast::Repetition {
                     kind,
                     inner: Box::new(lit('a')),
-                }])])),
+                }])),
                 "parsing {op:?}"
             );
         }
@@ -305,13 +306,13 @@ mod tests {
     fn repetition_only_binds_to_the_immediately_preceding_atom() {
         assert_eq!(
             parse("ab*"),
-            Ok(alt(vec![concat(vec![
+            Ok(concat(vec![
                 lit('a'),
                 Ast::Repetition {
                     kind: RepetitionKind::ZeroOrMore,
                     inner: Box::new(lit('b')),
                 }
-            ])]))
+            ]))
         );
     }
 
@@ -319,9 +320,7 @@ mod tests {
     fn parses_group() {
         assert_eq!(
             parse("(a)"),
-            Ok(alt(vec![concat(vec![Ast::Group(Box::new(alt(vec![
-                concat(vec![lit('a')])
-            ])))])]))
+            Ok(concat(vec![Ast::Group(Box::new(concat(vec![lit('a')])))]))
         );
     }
 
@@ -329,33 +328,33 @@ mod tests {
     fn parses_group_with_alternation_followed_by_more_input() {
         assert_eq!(
             parse("(a|b)c"),
-            Ok(alt(vec![concat(vec![
+            Ok(concat(vec![
                 Ast::Group(Box::new(alt(vec![
                     concat(vec![lit('a')]),
                     concat(vec![lit('b')]),
                 ]))),
                 lit('c'),
-            ])]))
+            ]))
         );
     }
 
     #[test]
     fn parses_escaped_metacharacter_as_literal() {
-        assert_eq!(parse(r"\."), Ok(alt(vec![concat(vec![lit('.')])])));
+        assert_eq!(parse(r"\."), Ok(concat(vec![lit('.')])));
     }
 
     #[test]
     fn parses_char_class_of_literals() {
         assert_eq!(
             parse("[abc]"),
-            Ok(alt(vec![concat(vec![Ast::CharClass {
+            Ok(concat(vec![Ast::CharClass {
                 negative: false,
                 items: vec![
                     ClassItem::Char('a'),
                     ClassItem::Char('b'),
                     ClassItem::Char('c'),
                 ],
-            }])]))
+            }]))
         );
     }
 
@@ -363,10 +362,10 @@ mod tests {
     fn parses_char_class_range() {
         assert_eq!(
             parse("[a-z]"),
-            Ok(alt(vec![concat(vec![Ast::CharClass {
+            Ok(concat(vec![Ast::CharClass {
                 negative: false,
                 items: vec![ClassItem::Range('a', 'z')],
-            }])]))
+            }]))
         );
     }
 
@@ -374,10 +373,10 @@ mod tests {
     fn parses_negated_char_class() {
         assert_eq!(
             parse("[^a-z]"),
-            Ok(alt(vec![concat(vec![Ast::CharClass {
+            Ok(concat(vec![Ast::CharClass {
                 negative: true,
                 items: vec![ClassItem::Range('a', 'z')],
-            }])]))
+            }]))
         );
     }
 
@@ -385,10 +384,10 @@ mod tests {
     fn parses_escaped_bracket_inside_char_class() {
         assert_eq!(
             parse(r"[\]]"),
-            Ok(alt(vec![concat(vec![Ast::CharClass {
+            Ok(concat(vec![Ast::CharClass {
                 negative: false,
                 items: vec![ClassItem::Char(']')],
-            }])]))
+            }]))
         );
     }
 
@@ -396,10 +395,10 @@ mod tests {
     fn dash_at_start_of_char_class_is_literal() {
         assert_eq!(
             parse("[-a]"),
-            Ok(alt(vec![concat(vec![Ast::CharClass {
+            Ok(concat(vec![Ast::CharClass {
                 negative: false,
                 items: vec![ClassItem::Char('-'), ClassItem::Char('a')],
-            }])]))
+            }]))
         );
     }
 
@@ -407,10 +406,10 @@ mod tests {
     fn dash_at_end_of_char_class_is_literal() {
         assert_eq!(
             parse("[a-]"),
-            Ok(alt(vec![concat(vec![Ast::CharClass {
+            Ok(concat(vec![Ast::CharClass {
                 negative: false,
                 items: vec![ClassItem::Char('a'), ClassItem::Char('-')],
-            }])]))
+            }]))
         );
     }
 
@@ -418,10 +417,10 @@ mod tests {
     fn lone_dash_char_class_is_literal() {
         assert_eq!(
             parse("[-]"),
-            Ok(alt(vec![concat(vec![Ast::CharClass {
+            Ok(concat(vec![Ast::CharClass {
                 negative: false,
                 items: vec![ClassItem::Char('-')],
-            }])]))
+            }]))
         );
     }
 
@@ -429,10 +428,10 @@ mod tests {
     fn range_followed_by_trailing_literal_dash() {
         assert_eq!(
             parse("[a-z-]"),
-            Ok(alt(vec![concat(vec![Ast::CharClass {
+            Ok(concat(vec![Ast::CharClass {
                 negative: false,
                 items: vec![ClassItem::Range('a', 'z'), ClassItem::Char('-')],
-            }])]))
+            }]))
         );
     }
 

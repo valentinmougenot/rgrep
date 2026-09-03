@@ -272,4 +272,27 @@ mod tests {
         assert!(re.is_match("a CAT sat"));
         assert!(!re.is_match("category"));
     }
+
+    #[test]
+    fn case_insensitive_prefilter_does_not_reject_a_match_present_in_a_different_case() {
+        // Regression test: the extracted prefilter literal keeps the case
+        // written in the pattern ("ABC"), so a case-insensitive match must
+        // not be rejected just because that exact case is absent from the
+        // text.
+        let re = RegexBuilder::new("ABC".to_string())
+            .case_insensitive(true)
+            .build()
+            .unwrap();
+        assert!(re.is_match("xxabcxx"));
+        assert!(re.find("xxabcxx").is_some());
+    }
+
+    #[test]
+    fn prefilter_does_not_reject_a_match_hidden_behind_a_broken_group() {
+        // Regression test: "(ab.cd)ef" must never collapse into a fixed
+        // literal like "abef" — the dot inside the group breaks
+        // contiguity, so "ab" and "ef" are not guaranteed adjacent.
+        let re = Regex::new("(ab.cd)ef").unwrap();
+        assert!(re.is_match("xxabXcdefxx"));
+    }
 }
